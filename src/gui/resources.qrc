@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="pingkk-icon.png">../../assets/pingkk-icon.png</file>
+        <file alias="chevron-down.svg">../../assets/chevron-down.svg</file>
+    </qresource>
+</RCC>

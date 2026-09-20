@@ -1,0 +1,7 @@
+#ifndef PINGKK_VERSION_H
+#define PINGKK_VERSION_H
+
+#define PINGKK_VERSION "@PROJECT_VERSION@"
+#define PINGKK_PROJECT_URL "https://github.com/trah01/pingkk"
+
+#endif

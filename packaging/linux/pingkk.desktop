@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ping看看
+Name[en]=pingkk
+Comment=端口连通性、Ping 和路由追踪工具
+Comment[en]=Port connectivity, ping, and route tracing tool
+Exec=pingkk-gui
+Icon=pingkk
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true

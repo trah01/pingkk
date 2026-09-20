@@ -1,0 +1,20 @@
+ping看看（pingkk）使用 Qt 的开源版本构建图形界面。
+
+Qt 版权归 The Qt Company Ltd. 及 Qt 项目贡献者所有。
+本项目仅使用 Qt Core、Qt GUI、Qt Widgets 以及运行图形界面所需的动态插件，
+并以动态链接方式随程序分发。这些 Qt 组件依据 GNU Lesser General Public
+License version 3（LGPLv3）提供，许可证全文见同目录的 LGPL-3.0.txt。
+
+Qt 官方网站：https://www.qt.io/
+Qt 开源代码：https://code.qt.io/cgit/qt/
+Qt 下载页面：https://download.qt.io/official_releases/qt/
+
+用户可以替换随 pingkk 分发的 Qt 动态库，并可为调试其对 Qt 的修改而进行
+LGPLv3 所允许的操作。pingkk 不对 Qt 本身提供额外担保。
+
+不同构建产物使用的 Qt 版本以文件名和 GitHub Actions 构建记录为准：
+- Windows XP x86：Qt 5.6.3
+- Windows x64：Qt 6.8.3
+- macOS Intel：Qt 5.15.2
+- macOS Apple Silicon：Qt 6.8.3
+- Linux x86/x64/ARM64：目标容器提供的 Qt 5
