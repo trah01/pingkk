@@ -4,6 +4,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if(NOT DEFINED PAYLOAD_DIR)
     message(FATAL_ERROR "PAYLOAD_DIR is required")
 endif()
+file(TO_CMAKE_PATH "${PAYLOAD_DIR}" PAYLOAD_DIR)
 configure_file(../../../src/windows/version.rc.in version.rc @ONLY)
 add_executable(pingkk_portable WIN32 launcher.cpp
     "${PAYLOAD_DIR}/payload.rc" "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
