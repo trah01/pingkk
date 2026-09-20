@@ -100,6 +100,20 @@ jobs:
         shell: pwsh
         run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-x64-portable.exe -QtMajor 5
 
+      - name: 验证 Windows 高 DPI 清单
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}/Windows Kits/10/bin/*/x64/mt.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $mt) { throw 'Manifest tool not found' }
+          $manifest = Join-Path $env:RUNNER_TEMP 'pingkk-gui.manifest'
+          & $mt.FullName '-inputresource:dist/bin/pingkk-gui.exe;#1' "-out:$manifest"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read embedded manifest' }
+          $content = Get-Content -Raw $manifest
+          if ($content -notmatch 'PerMonitorV2' -or $content -notmatch 'true/pm') {
+            throw 'Per-monitor DPI declarations are missing'
+          }
+
       - name: 检查 x64 兼容依赖与入口点
         shell: pwsh
         run: |

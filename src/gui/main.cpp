@@ -2,12 +2,24 @@
 #include "pingkk/version.h"
 
 #include <QApplication>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QDir>
 #include <QProcess>
 #include <QTimer>
 
 int main(int argc, char* argv[]) {
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt 5 leaves high-DPI scaling opt-in. Set these before QApplication so
+    // Windows renders at the monitor's native resolution instead of bitmap
+    // stretching the whole window.
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
+#endif
     QApplication application(argc, argv);
     application.setApplicationName("pingkk");
     application.setApplicationVersion(PINGKK_VERSION);
