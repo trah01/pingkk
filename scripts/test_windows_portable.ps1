@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][string]$Executable)
+param(
+    [Parameter(Mandatory)][string]$Executable,
+    [ValidateSet(5, 6)][int]$QtMajor = 6
+)
 $ErrorActionPreference = 'Stop'
 $executablePath = (Resolve-Path -LiteralPath $Executable).Path
 function Invoke-SmokeProcess([string]$File, [string]$Arguments) {
@@ -18,7 +21,7 @@ if ($remaining.Count) { throw 'Portable launcher left temporary files behind' }
 # Check Unicode/space paths and the extraction mode used for replacing Qt DLLs.
 $destination = Join-Path $env:RUNNER_TEMP ('pingkk smoke 中文 ' + [guid]::NewGuid())
 Invoke-SmokeProcess $executablePath "--extract `"$destination`""
-foreach ($file in @('pingkk-gui.exe', 'pingkk.exe', 'Qt6Core.dll', 'platforms/qwindows.dll', 'licenses/LGPL-3.0.txt')) {
+foreach ($file in @('pingkk-gui.exe', 'pingkk.exe', "Qt${QtMajor}Core.dll", 'platforms/qwindows.dll', 'licenses/LGPL-3.0.txt')) {
     if (-not (Test-Path -LiteralPath (Join-Path $destination $file))) { throw "Missing $file" }
 }
 Invoke-SmokeProcess (Join-Path $destination 'pingkk-gui.exe') '--smoke-test'

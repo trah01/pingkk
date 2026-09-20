@@ -20,22 +20,22 @@ permissions:
 
 jobs:
   windows-x64:
-    name: Windows x64
+    name: Windows x64 兼容版
     runs-on: windows-2022
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 安装 Qt 6
+      - name: 安装 Qt 5.15 兼容版
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.3"
-          arch: win64_msvc2022_64
+          version: "5.15.2"
+          arch: win64_msvc2019_64
           cache: true
 
       - name: 配置 CMake
         shell: pwsh
-        run: cmake -S . -B build-windows-x64 -A x64 -DPINGKK_BUILD_GUI=ON
+        run: cmake -S . -B build-windows-x64 -A x64 -T v142 -DPINGKK_BUILD_GUI=ON -DPINGKK_QT_MAJOR=5
 
       - name: 构建
         run: cmake --build build-windows-x64 --config Release --parallel
@@ -98,7 +98,15 @@ jobs:
 
       - name: 验证单文件启动、CLI 和临时文件清理
         shell: pwsh
-        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-x64-portable.exe
+        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-x64-portable.exe -QtMajor 5
+
+      - name: 检查 x64 兼容依赖与入口点
+        shell: pwsh
+        run: |
+          python -m pip install pefile==2024.8.26
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install PE inspector' }
+          python scripts/check_windows_compatibility.py dist-portable pingkk-windows-x64-portable.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compatibility regression' }
 
       - name: 压缩 Windows x64 命令行版
         shell: pwsh
@@ -156,6 +164,7 @@ jobs:
         shell: pwsh
         run: >-
           cmake -S . -B build-windows-arm64 -A ARM64
+          -DPINGKK_QT_MAJOR=6
           -DPINGKK_BUILD_GUI=ON
           "-DQT_HOST_PATH=${{ runner.temp }}/qt-host/Qt/6.8.3/msvc2022_64"
 
@@ -296,12 +305,14 @@ jobs:
             runner: macos-15-intel
             artifact: pingkk-macos-intel
             qt-version: "5.15.2"
+            qt-major: "5"
             architecture: x86_64
             deployment-target: "10.13"
           - name: macOS Apple Silicon
             runner: macos-15
             artifact: pingkk-macos-arm64
-            qt-version: "6.8.3"
+            qt-version: "6.2.4"
+            qt-major: "6"
             architecture: arm64
             deployment-target: "11.0"
 
@@ -321,6 +332,7 @@ jobs:
           cmake -S . -B build-macos
           -DCMAKE_BUILD_TYPE=Release
           -DPINGKK_BUILD_GUI=ON
+          -DPINGKK_QT_MAJOR=${{ matrix.qt-major }}
           -DCMAKE_OSX_ARCHITECTURES=${{ matrix.architecture }}
           -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
 
@@ -330,7 +342,7 @@ jobs:
       - name: 整理 macOS 运行文件
         run: |
           cmake --install build-macos --prefix dist-all
-          bash scripts/package_macos.sh
+          bash scripts/package_macos.sh "${{ matrix.architecture }}" "${{ matrix.deployment-target }}"
           mkdir -p dist-gui dist-cli/bin
           cp -R dist-all/pingkk.app dist-gui/pingkk.app
           cp dist-all/bin/pingkk dist-cli/bin/pingkk
@@ -407,13 +419,13 @@ jobs:
             --platform "${{ matrix.platform }}" \
             --volume "${GITHUB_WORKSPACE}:/workspace" \
             --workdir /workspace \
-            debian:bullseye-slim \
+            debian:buster-slim \
             bash -lc '
               set -euo pipefail
-              # Keep package indexes and archives consistent after Bullseye LTS.
+              # Build against glibc 2.28 and Qt 5.11; do not raise the runtime baseline.
               printf "%s\n" \
-                "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260901T000000Z/ bullseye main" \
-                "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260901T000000Z/ bullseye-security main" \
+                "deb [check-valid-until=no] http://archive.debian.org/debian buster main" \
+                "deb [check-valid-until=no] http://archive.debian.org/debian-security buster/updates main" \
                 > /etc/apt/sources.list
               rm -f /etc/apt/sources.list.d/*
               apt-get update

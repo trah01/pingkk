@@ -12,6 +12,7 @@ macdeployqt "$app" -always-overwrite -no-plugins \
 find "$app" -type d \( -name Headers -o -name '*.dSYM' \) -prune -exec rm -rf '{}' +
 find "$app" -type f \( -name '*.prl' -o -name '*.la' \) -delete
 strip -x "$app/Contents/MacOS/pingkk" "$app/Contents/MacOS/pingkk-cli" dist-all/bin/pingkk
+python3 scripts/check_macos_compatibility.py "$app" "${1:?architecture}" "${2:?minimum macOS}"
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
 "$app/Contents/MacOS/pingkk" --smoke-test

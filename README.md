@@ -37,6 +37,20 @@
 
 Windows 不再提供 x86 / XP 版本。
 
+### 兼容性基线
+
+构建优先兼容旧系统，Qt 主版本和工具链按平台固定，不自动升级：
+
+| 平台 | 构建基线 |
+| --- | --- |
+| Windows x64 | Qt 5.15.2、MSVC 2019 v142；面向 Windows 7 SP1 / Server 2008 R2 SP1 及以上，包括 Server 2016。旧系统须安装所需系统更新和 Universal CRT |
+| Windows ARM64 | Qt 6.8.3 官方 ARM64 构建，Windows 10 1809 及以上；Qt 5.15 无对应官方原生 ARM64 包 |
+| macOS Intel | Qt 5.15.2，macOS 10.13 及以上 |
+| macOS Apple Silicon | Qt 6.2.4，macOS 11 及以上 |
+| Linux x86 / x64 / ARM64 | Debian 10、glibc 2.28、Qt 5.11；需要 X11 或 XWayland，DEB 的具体依赖以包内声明为准 |
+
+上述是构建目标，不代表已在每一种旧系统上实测。GitHub Actions 进行打包后启动检查，并检查 Windows x64 已知不兼容入口及 macOS 所有内置库的最低系统版本；托管 Runner 不提供 Server 2016，仍需在该系统验收。
+
 Windows 单文件版也支持 `程序.exe --extract 新目录`，用于保留解压文件或替换 Qt 动态库；随后可直接运行目录内的 `pingkk-gui.exe`。目标目录必须尚不存在。
 
 ## 命令行用法

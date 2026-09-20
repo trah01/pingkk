@@ -32,9 +32,11 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 #if TargetArch == "arm64"
+MinVersion=10.0.17763
 ArchitecturesAllowed=arm64
 ArchitecturesInstallIn64BitMode=arm64
 #else
+MinVersion=6.1sp1
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 #endif

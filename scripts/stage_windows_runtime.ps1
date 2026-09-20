@@ -3,11 +3,13 @@ $ErrorActionPreference = 'Stop'
 $qt = $env:QT_ROOT_DIR
 New-Item -ItemType Directory -Force dist/bin/platforms, dist/bin/styles | Out-Null
 Copy-Item "$qt/plugins/platforms/qwindows.dll" dist/bin/platforms/
-Copy-Item "$qt/plugins/styles/qmodernwindowsstyle.dll" dist/bin/styles/
+$style = if ($Architecture -eq 'x64') { 'qwindowsvistastyle.dll' } else { 'qmodernwindowsstyle.dll' }
+Copy-Item "$qt/plugins/styles/$style" dist/bin/styles/
 # Qt's shared libraries still need the app-local MSVC runtime. No installer/UAC.
 $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 $vs = & $vswhere -latest -products '*' -property installationPath
-$crt = Get-ChildItem "$vs/VC/Redist/MSVC/*/$Architecture/Microsoft.VC*.CRT" -Directory |
+$runtimeVersion = if ($Architecture -eq 'x64') { '14.29.*' } else { '*' }
+$crt = Get-ChildItem "$vs/VC/Redist/MSVC/$runtimeVersion/$Architecture/Microsoft.VC*.CRT" -Directory |
     Sort-Object FullName -Descending | Select-Object -First 1
 if (-not $crt) { throw "MSVC runtime for $Architecture is missing" }
 Copy-Item "$($crt.FullName)/*.dll" dist/bin/

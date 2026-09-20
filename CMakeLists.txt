@@ -1,4 +1,7 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.13)
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
 
 project(pingkk VERSION 0.1.1 LANGUAGES CXX)
 
@@ -6,6 +9,8 @@ project(pingkk VERSION 0.1.1 LANGUAGES CXX)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(PINGKK_BUILD_GUI "构建 Qt 图形界面" ON)
+set(PINGKK_QT_MAJOR "5" CACHE STRING "Qt major version; prefer Qt 5 for compatibility")
+set_property(CACHE PINGKK_QT_MAJOR PROPERTY STRINGS 5 6)
 file(WRITE "${CMAKE_BINARY_DIR}/pingkk-version.txt" "${PROJECT_VERSION}\n")
 
 configure_file(
@@ -33,6 +38,11 @@ target_include_directories(pingkk_core PUBLIC
 )
 
 if(WIN32)
+    if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+        add_compile_definitions(_WIN32_WINNT=0x0A00 WINVER=0x0A00)
+    else()
+        add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
+    endif()
     target_link_libraries(pingkk_core PUBLIC ws2_32 iphlpapi)
 endif()
 
@@ -54,14 +64,12 @@ if(WIN32)
 endif()
 
 if(PINGKK_BUILD_GUI)
-    find_package(Qt6 COMPONENTS Widgets QUIET)
-    if(Qt6_FOUND)
-        set(PINGKK_QT_MAJOR 6)
+    if(PINGKK_QT_MAJOR STREQUAL "5")
+        find_package(Qt5 5.11 COMPONENTS Widgets REQUIRED)
+    elseif(PINGKK_QT_MAJOR STREQUAL "6")
+        find_package(Qt6 6.2 COMPONENTS Widgets REQUIRED)
     else()
-        find_package(Qt5 COMPONENTS Widgets QUIET)
-        if(Qt5_FOUND)
-            set(PINGKK_QT_MAJOR 5)
-        endif()
+        message(FATAL_ERROR "PINGKK_QT_MAJOR must be 5 or 6")
     endif()
     if(DEFINED PINGKK_QT_MAJOR)
         set(CMAKE_AUTOMOC ON)

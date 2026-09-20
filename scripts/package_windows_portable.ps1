@@ -37,7 +37,8 @@ $iconPath = (Join-Path $PWD 'assets/pingkk-icon.ico').Replace('\', '/')
     Set-Content -Encoding utf8 (Join-Path $payload 'payload.rc')
 $cmakeArch = if ($Architecture -eq 'arm64') { 'ARM64' } else { 'x64' }
 $cmakePayload = $payload.Replace('\', '/')
-cmake -S packaging/windows/portable -B "build-portable-$Architecture" -A $cmakeArch "-DPAYLOAD_DIR:PATH=$cmakePayload"
+$toolset = if ($Architecture -eq 'x64') { 'v142' } else { 'v143' }
+cmake -S packaging/windows/portable -B "build-portable-$Architecture" -A $cmakeArch -T $toolset "-DPAYLOAD_DIR:PATH=$cmakePayload"
 if ($LASTEXITCODE -ne 0) { throw 'Launcher configuration failed' }
 cmake --build "build-portable-$Architecture" --config Release --parallel
 if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed' }
