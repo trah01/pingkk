@@ -5,7 +5,15 @@ build_dir="${1:?缺少构建目录}"
 gui_output_dir="${2:?缺少图形版输出目录}"
 cli_output_dir="${3:?缺少命令行版输出目录}"
 
-cmake --install "${build_dir}" --prefix "${gui_output_dir}" --strip
+# Debian 10 ships CMake 3.13, before `cmake --install` was introduced.
+# Invoke the generated install script directly and keep all paths absolute.
+build_dir="$(realpath -m "${build_dir}")"
+gui_output_dir="$(realpath -m "${gui_output_dir}")"
+cli_output_dir="$(realpath -m "${cli_output_dir}")"
+cmake \
+    -DCMAKE_INSTALL_PREFIX="${gui_output_dir}" \
+    -DCMAKE_INSTALL_DO_STRIP=1 \
+    -P "${build_dir}/cmake_install.cmake"
 
 mkdir -p "${gui_output_dir}/lib" "${gui_output_dir}/plugins/platforms"
 cp -R licenses "${gui_output_dir}/licenses"

@@ -220,7 +220,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
     packet.header.type = kIcmpEchoRequest;
     packet.header.identifier = htons(static_cast<unsigned short>(getpid() & 0xffff));
     packet.header.sequence = htons(sequence);
-    std::memcpy(packet.payload, "pingkk", 8);
+    std::memcpy(packet.payload, "pingkk", sizeof("pingkk"));
     packet.header.checksum = checksum(&packet, sizeof(packet));
 
     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
