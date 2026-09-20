@@ -17,8 +17,14 @@ cmake \
 
 mkdir -p "${gui_output_dir}/lib" "${gui_output_dir}/plugins/platforms"
 cp -R licenses "${gui_output_dir}/licenses"
-plugin_dir="$(qmake -query QT_INSTALL_PLUGINS)"
-cp "${plugin_dir}/platforms/libqxcb.so" "${gui_output_dir}/plugins/platforms/"
+# Debian's qmake is a qtchooser wrapper and may have no default selection.
+# Query the package database so the path also follows each CPU architecture.
+xcb_plugin="$(dpkg-query -L libqt5gui5 | awk '/\/platforms\/libqxcb\.so$/ { print; exit }')"
+if [ -z "${xcb_plugin}" ] || [ ! -f "${xcb_plugin}" ]; then
+    echo "未找到 Qt 5 xcb 平台插件" >&2
+    exit 1
+fi
+cp "${xcb_plugin}" "${gui_output_dir}/plugins/platforms/"
 
 copy_dependencies() {
     ldd "$1" | awk '/=> \// { print $3 }' | while IFS= read -r library; do
