@@ -13,8 +13,11 @@ Qt 下载页面：https://download.qt.io/official_releases/qt/
 LGPLv3 所允许的操作。pingkk 不对 Qt 本身提供额外担保。
 
 不同构建产物使用的 Qt 版本以文件名和 GitHub Actions 构建记录为准：
-- Windows XP x86：Qt 5.6.3
-- Windows x64：Qt 6.8.3
+- Windows x64 / ARM64：Qt 6.8.3
 - macOS Intel：Qt 5.15.2
 - macOS Apple Silicon：Qt 6.8.3
 - Linux x86/x64/ARM64：目标容器提供的 Qt 5
+
+Windows 单文件便携版仍采用动态链接，启动时释放 Qt DLL 到临时目录。
+可以使用“程序.exe --extract 新目录”保留全部运行文件和许可证，替换其中
+的 Qt DLL 后直接运行 pingkk-gui.exe。Linux DEB 使用系统提供的 Qt 运行库。

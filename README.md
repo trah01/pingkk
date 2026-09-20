@@ -15,25 +15,29 @@
 
 前往 [Releases](https://github.com/trah01/pingkk/releases) 下载适合你系统的版本。
 
+**Windows 推荐下载 `pingkk-windows-x64-portable.exe`，双击即可使用，无需安装或手动解压。** ARM 设备选择 `pingkk-windows-arm64-portable.exe`。运行时会自动释放依赖到临时目录，正常关闭后清理。
+
 按系统和处理器架构选择下载包，具体文件以对应 Release 的附件为准：
 
 | 系统 | 处理器架构 | 图形界面便携包 / 应用包 | 安装包 | 命令行（CLI）包 | 文件名前缀 |
 | --- | --- | --- | --- | --- | --- |
-| Windows | x64（Intel / AMD） | `portable.zip` | `setup.exe` | `cli.zip` | `pingkk-windows-x64-` |
-| Windows | ARM64 | `portable.zip` | `setup.exe` | `cli.zip` | `pingkk-windows-arm64-` |
-| macOS | Intel（x86_64） | `gui.tar.gz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-intel-` |
-| macOS | Apple Silicon（ARM64） | `gui.tar.gz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-arm64-` |
-| Linux | x86（32 位） | `portable.tar.gz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x86-` |
-| Linux | x64（含麒麟 / 统信 x64） | `portable.tar.gz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x64-` |
-| Linux | ARM64（含麒麟 / 统信 ARM64） | `portable.tar.gz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-arm64-` |
+| Windows | x64（Intel / AMD） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-` |
+| Windows | ARM64 | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-arm64-` |
+| macOS | Intel（x86_64） | `gui.tar.xz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-intel-` |
+| macOS | Apple Silicon（ARM64） | `gui.tar.xz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-arm64-` |
+| Linux | x86（32 位） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x86-` |
+| Linux | x64（含麒麟 / 统信 x64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x64-` |
+| Linux | ARM64（含麒麟 / 统信 ARM64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-arm64-` |
 
-文件名前缀加上包名即为完整下载文件名，例如 Windows x64 便携包为 `pingkk-windows-x64-portable.zip`。表中的“—”表示不提供该类型的包。
+文件名前缀加上包名即为完整下载文件名，例如 Windows x64 单文件版为 `pingkk-windows-x64-portable.exe`。表中的“—”表示不提供该类型的包。
 
-- **安装包**：Windows 使用 `.exe` 安装程序；Linux 的 `.deb` 适用于支持该包格式的发行版。
-- **便携包 / 应用包**：解压后使用图形界面；macOS 打开包内的 `pingkk.app`。
+- **安装包**：Windows 使用 `setup.exe`；Linux 使用 `sudo apt install ./文件名.deb`，由系统安装所需 Qt 运行库，包内不重复携带。首次安装依赖可能需要联网。
+- **便携包 / 应用包**：Windows 的 `portable.exe` 直接双击；macOS 解压后打开 `pingkk.app`；Linux 解压后运行 `run-pingkk.sh`。
 - **CLI 包**：仅使用命令行时选择。图形界面包也已内置命令行程序，无需重复下载。
 
 Windows 不再提供 x86 / XP 版本。
+
+Windows 单文件版也支持 `程序.exe --extract 新目录`，用于保留解压文件或替换 Qt 动态库；随后可直接运行目录内的 `pingkk-gui.exe`。目标目录必须尚不存在。
 
 ## 命令行用法
 

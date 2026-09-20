@@ -5,7 +5,7 @@ build_dir="${1:?缺少构建目录}"
 gui_output_dir="${2:?缺少图形版输出目录}"
 cli_output_dir="${3:?缺少命令行版输出目录}"
 
-cmake --install "${build_dir}" --prefix "${gui_output_dir}"
+cmake --install "${build_dir}" --prefix "${gui_output_dir}" --strip
 
 mkdir -p "${gui_output_dir}/lib" "${gui_output_dir}/plugins/platforms"
 cp -R licenses "${gui_output_dir}/licenses"
@@ -38,6 +38,10 @@ while true; do
         copy_dependencies "${library}"
     done
 done
+
+# Preserve the required dependency closure; remove only non-runtime symbols.
+find "${gui_output_dir}/lib" "${gui_output_dir}/plugins" -type f \
+    -exec strip --strip-unneeded '{}' +
 
 cat > "${gui_output_dir}/run-pingkk.sh" <<'SCRIPT'
 #!/usr/bin/env bash

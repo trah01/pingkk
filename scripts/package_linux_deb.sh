@@ -19,9 +19,8 @@ mkdir -p \
     "${staging_dir}/DEBIAN"
 
 cp -R "${gui_output_dir}/bin" "${app_dir}/bin"
-cp -R "${gui_output_dir}/lib" "${app_dir}/lib"
-cp -R "${gui_output_dir}/plugins" "${app_dir}/plugins"
-cp "${gui_output_dir}/bin/pingkk" "${staging_dir}/usr/bin/pingkk"
+mv "${app_dir}/bin/pingkk" "${staging_dir}/usr/bin/pingkk"
+ln -s /usr/bin/pingkk "${app_dir}/bin/pingkk"
 cp packaging/linux/pingkk.desktop "${staging_dir}/usr/share/applications/pingkk.desktop"
 cp assets/pingkk-icon.png \
     "${staging_dir}/usr/share/icons/hicolor/512x512/apps/pingkk.png"
@@ -31,19 +30,34 @@ cat > "${staging_dir}/usr/bin/pingkk-gui" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 app_dir="/usr/lib/pingkk"
-export LD_LIBRARY_PATH="${app_dir}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-export QT_PLUGIN_PATH="${app_dir}/plugins"
 exec "${app_dir}/bin/pingkk-gui" "$@"
 SCRIPT
 chmod 755 "${staging_dir}/usr/bin/pingkk" "${staging_dir}/usr/bin/pingkk-gui"
 
 installed_size="$(du -sk "${staging_dir}/usr" | awk '{print $1}')"
+# Let Debian derive the ABI/version requirements from the actual executables.
+mkdir -p "${staging_dir}/debian"
+cat > "${staging_dir}/debian/control" <<'CONTROL'
+Source: pingkk
+Section: net
+Priority: optional
+Maintainer: trah01
+
+Package: pingkk
+Architecture: any
+Description: Network diagnostic tool
+CONTROL
+dependencies="$(cd "${staging_dir}" && dpkg-shlibdeps -O \
+    -eusr/lib/pingkk/bin/pingkk-gui -eusr/bin/pingkk | sed -n 's/^shlibs:Depends=//p')"
+test -n "${dependencies}"
+rm -rf "${staging_dir}/debian"
 cat > "${staging_dir}/DEBIAN/control" <<CONTROL
 Package: pingkk
 Version: ${version}
 Section: net
 Priority: optional
 Architecture: ${architecture}
+Depends: ${dependencies}
 Installed-Size: ${installed_size}
 Maintainer: trah01
 Homepage: https://github.com/trah01/pingkk
@@ -51,4 +65,4 @@ Description: ping看看端口连通性测试工具
  提供 TCP、UDP、Ping 和路由追踪的图形界面与命令行工具。
 CONTROL
 
-dpkg-deb --build "${staging_dir}" "${output_file}"
+dpkg-deb -Zxz -z9 --build "${staging_dir}" "${output_file}"

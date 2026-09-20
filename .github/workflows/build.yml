@@ -44,7 +44,9 @@ jobs:
         shell: pwsh
         run: |
           cmake --install build-windows-x64 --config Release --prefix dist
-          windeployqt.exe --release --no-translations dist/bin/pingkk-gui.exe
+          windeployqt.exe --release --no-translations --no-plugins --no-opengl-sw --no-system-d3d-compiler --no-compiler-runtime dist/bin/pingkk-gui.exe
+          if ($LASTEXITCODE -ne 0) { throw "Qt deployment failed: $LASTEXITCODE" }
+          ./scripts/stage_windows_runtime.ps1 -Architecture x64
           New-Item -ItemType Directory -Force dist/licenses | Out-Null
           Copy-Item licenses/* dist/licenses/
           @"
@@ -90,17 +92,24 @@ jobs:
             throw "Inno Setup 构建失败，退出码：$LASTEXITCODE"
           }
 
-      - name: 压缩 Windows x64 图形版与命令行版
+      - name: 生成 Windows x64 单文件便携版
+        shell: pwsh
+        run: ./scripts/package_windows_portable.ps1 -SourceDir dist-portable -Architecture x64
+
+      - name: 验证单文件启动、CLI 和临时文件清理
+        shell: pwsh
+        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-x64-portable.exe
+
+      - name: 压缩 Windows x64 命令行版
         shell: pwsh
         run: |
-          Compress-Archive -Path dist-portable\* -DestinationPath pingkk-windows-x64-portable.zip
           Compress-Archive -Path dist-cli\* -DestinationPath pingkk-windows-x64-cli.zip
 
       - name: 上传 Windows x64 图形版
         uses: actions/upload-artifact@v4
         with:
           name: pingkk-windows-x64-portable
-          path: pingkk-windows-x64-portable.zip
+          path: pingkk-windows-x64-portable.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -179,10 +188,11 @@ jobs:
           "@ | Set-Content -Encoding utf8 (Join-Path $deployTools 'qt.conf')
           & (Join-Path $deployTools 'windeployqt.exe') `
             --qtpaths (Join-Path $deployTools 'qtpaths.exe') `
-            --release --no-translations dist/bin/pingkk-gui.exe
+            --release --no-translations --no-plugins --no-opengl-sw --no-system-d3d-compiler --no-compiler-runtime dist/bin/pingkk-gui.exe
           if ($LASTEXITCODE -ne 0) {
             throw "ARM64 Qt deployment failed: $LASTEXITCODE"
           }
+          ./scripts/stage_windows_runtime.ps1 -Architecture arm64
           New-Item -ItemType Directory -Force dist/licenses | Out-Null
           Copy-Item licenses/* dist/licenses/
           @"
@@ -229,17 +239,20 @@ jobs:
             throw "Inno Setup 构建失败，退出码：$LASTEXITCODE"
           }
 
-      - name: 压缩 Windows ARM64 图形版与命令行版
+      - name: 生成 Windows arm64 单文件便携版
+        shell: pwsh
+        run: ./scripts/package_windows_portable.ps1 -SourceDir dist-portable -Architecture arm64
+
+      - name: 压缩 Windows ARM64 命令行版
         shell: pwsh
         run: |
-          Compress-Archive -Path dist-portable\* -DestinationPath pingkk-windows-arm64-portable.zip
           Compress-Archive -Path dist-cli\* -DestinationPath pingkk-windows-arm64-cli.zip
 
       - name: 上传 Windows ARM64 图形版
         uses: actions/upload-artifact@v4
         with:
           name: pingkk-windows-arm64-portable
-          path: pingkk-windows-arm64-portable.zip
+          path: pingkk-windows-arm64-portable.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -258,6 +271,19 @@ jobs:
           path: pingkk-windows-arm64-setup.exe
           if-no-files-found: error
           retention-days: 14
+
+  windows-arm64-test:
+    name: Windows ARM64 单文件验证
+    runs-on: windows-11-arm
+    needs: windows-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pingkk-windows-arm64-portable
+      - name: 验证单文件启动、CLI 和临时文件清理
+        shell: pwsh
+        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-arm64-portable.exe
 
   macos:
     name: ${{ matrix.name }}
@@ -304,11 +330,7 @@ jobs:
       - name: 整理 macOS 运行文件
         run: |
           cmake --install build-macos --prefix dist-all
-          macdeployqt dist-all/pingkk.app -always-overwrite
-          rm -f dist-all/pingkk.app/Contents/PlugIns/imageformats/libqpdf.dylib
-          rm -f dist-all/pingkk.app/Contents/PlugIns/iconengines/libqsvgicon.dylib
-          rm -f dist-all/pingkk.app/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib
-          codesign --force --deep --sign - dist-all/pingkk.app
+          bash scripts/package_macos.sh
           mkdir -p dist-gui dist-cli/bin
           cp -R dist-all/pingkk.app dist-gui/pingkk.app
           cp dist-all/bin/pingkk dist-cli/bin/pingkk
@@ -324,14 +346,14 @@ jobs:
 
       - name: 压缩 macOS 图形版与命令行版
         run: |
-          tar -C dist-gui -czf "${{ matrix.artifact }}-gui.tar.gz" .
+          tar -C dist-gui -cJf "${{ matrix.artifact }}-gui.tar.xz" .
           tar -C dist-cli -czf "${{ matrix.artifact }}-cli.tar.gz" .
 
       - name: 上传 macOS 图形版
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}-gui
-          path: ${{ matrix.artifact }}-gui.tar.gz
+          path: ${{ matrix.artifact }}-gui.tar.xz
           if-no-files-found: error
           retention-days: 14
 
@@ -396,7 +418,7 @@ jobs:
               rm -f /etc/apt/sources.list.d/*
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                build-essential cmake ca-certificates dpkg-dev qtbase5-dev qtbase5-dev-tools
+                build-essential cmake ca-certificates dpkg-dev qtbase5-dev qtbase5-dev-tools xvfb xauth
               cmake -S . -B "${{ matrix.build-dir }}" \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DPINGKK_BUILD_GUI=ON
@@ -410,18 +432,21 @@ jobs:
                 "${{ matrix.deb-arch }}" \
                 "$(cat "${{ matrix.build-dir }}/pingkk-version.txt")" \
                 "/workspace/${{ matrix.artifact }}-installer.deb"
+              xvfb-run -a "${{ matrix.output-dir }}-gui/run-pingkk.sh" --smoke-test
+              dpkg -i "/workspace/${{ matrix.artifact }}-installer.deb"
+              xvfb-run -a /usr/bin/pingkk-gui --smoke-test
             '
 
       - name: 压缩 Linux 图形版与命令行版
         run: |
-          tar -C "${{ matrix.output-dir }}-gui" -czf "${{ matrix.artifact }}-portable.tar.gz" .
+          tar -C "${{ matrix.output-dir }}-gui" -cJf "${{ matrix.artifact }}-portable.tar.xz" .
           tar -C "${{ matrix.output-dir }}-cli" -czf "${{ matrix.artifact }}-cli.tar.gz" .
 
       - name: 上传 Linux 便携版
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}-portable
-          path: ${{ matrix.artifact }}-portable.tar.gz
+          path: ${{ matrix.artifact }}-portable.tar.xz
           if-no-files-found: error
           retention-days: 14
 
@@ -446,6 +471,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - windows-arm64
+      - windows-arm64-test
       - windows-x64
       - macos
       - linux
@@ -464,7 +490,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-files
-          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.exe' -o -name '*.deb' \) \
+          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.tar.xz' -o -name '*.exe' -o -name '*.deb' \) \
             -exec cp '{}' release-files/ \;
           expected=19
           actual="$(find release-files -maxdepth 1 -type f | wc -l | tr -d ' ')"
@@ -472,8 +498,9 @@ jobs:
             echo "预期 ${expected} 个平台压缩包，实际找到 ${actual} 个" >&2
             exit 1
           fi
+          du -h release-files/* | sort -h >> "$GITHUB_STEP_SUMMARY"
           cd release-files
-          sha256sum *.zip *.tar.gz *.exe *.deb > SHA256SUMS.txt
+          sha256sum *.zip *.tar.gz *.tar.xz *.exe *.deb > SHA256SUMS.txt
 
       - name: 创建或更新 Release
         shell: bash

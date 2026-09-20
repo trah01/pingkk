@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
-project(pingkk VERSION 0.1.0 LANGUAGES CXX)
+project(pingkk VERSION 0.1.1 LANGUAGES CXX)
+
+# Keep our executables (including the separately installed CLI) self-contained.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(PINGKK_BUILD_GUI "构建 Qt 图形界面" ON)
 file(WRITE "${CMAKE_BINARY_DIR}/pingkk-version.txt" "${PROJECT_VERSION}\n")
