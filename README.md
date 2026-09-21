@@ -15,16 +15,17 @@
 
 前往 [Releases](https://github.com/trah01/pingkk/releases) 下载适合你系统的版本。
 
-**Windows 推荐下载 `pingkk-windows-x64-portable.exe`，双击即可使用，无需安装或手动解压。** ARM 设备选择 `pingkk-windows-arm64-portable.exe`。运行时会自动释放依赖到临时目录，正常关闭后清理。
+**Windows 10 1809 及以上推荐下载 `pingkk-windows-x64-portable.exe`。** Windows 7、Server 2008 R2 和 Server 2016 等旧系统使用 `pingkk-windows-x64-legacy-portable.exe`；ARM 设备使用 `pingkk-windows-arm64-portable.exe`。单文件版双击即可使用，运行时会自动释放依赖到临时目录，正常关闭后清理。
 
 按系统和处理器架构选择下载包，具体文件以对应 Release 的附件为准：
 
 | 系统 | 处理器架构 | 图形界面便携包 / 应用包 | 安装包 | 命令行（CLI）包 | 文件名前缀 |
 | --- | --- | --- | --- | --- | --- |
-| Windows | x64（Intel / AMD） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-` |
+| Windows | x64（Windows 10 1809 及以上） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-` |
+| Windows | x64（旧系统兼容版） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-legacy-` |
 | Windows | ARM64 | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-arm64-` |
-| macOS | Intel（x86_64） | `gui.tar.xz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-intel-` |
-| macOS | Apple Silicon（ARM64） | `gui.tar.xz`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-arm64-` |
+| macOS | Intel（x86_64） | `gui.zip`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-intel-` |
+| macOS | Apple Silicon（ARM64） | `gui.zip`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-arm64-` |
 | Linux | x86（32 位） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x86-` |
 | Linux | x64（含麒麟 / 统信 x64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x64-` |
 | Linux | ARM64（含麒麟 / 统信 ARM64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-arm64-` |
@@ -43,7 +44,8 @@ Windows 不再提供 x86 / XP 版本。
 
 | 平台 | 构建基线 |
 | --- | --- |
-| Windows x64 | Qt 5.15.2、MSVC 2019 v142；面向 Windows 7 SP1 / Server 2008 R2 SP1 及以上，包括 Server 2016。旧系统须安装所需系统更新和 Universal CRT |
+| Windows x64 现代版 | Qt 6.8.3、MSVC 2022 v143；Windows 10 1809 及以上 |
+| Windows x64 兼容版 | Qt 5.15.2、MSVC 2019 v142；面向 Windows 7 SP1 / Server 2008 R2 SP1 及以上，包括 Server 2016。旧系统须安装所需系统更新和 Universal CRT |
 | Windows ARM64 | Qt 6.8.3 官方 ARM64 构建，Windows 10 1809 及以上；Qt 5.15 无对应官方原生 ARM64 包 |
 | macOS Intel | Qt 5.15.2，macOS 10.13 及以上 |
 | macOS Apple Silicon | Qt 6.2.4，macOS 11 及以上 |
@@ -52,6 +54,16 @@ Windows 不再提供 x86 / XP 版本。
 上述是构建目标，不代表已在每一种旧系统上实测。GitHub Actions 进行打包后启动检查，并检查 Windows x64 已知不兼容入口及 macOS 所有内置库的最低系统版本；托管 Runner 不提供 Server 2016，仍需在该系统验收。
 
 Windows 单文件版也支持 `程序.exe --extract 新目录`，用于保留解压文件或替换 Qt 动态库；随后可直接运行目录内的 `pingkk-gui.exe`。目标目录必须尚不存在。
+
+### macOS 打开方式
+
+macOS 版本不使用 Apple Developer ID 和公证。解压后若系统提示无法验证应用，请打开“终端”，进入 `pingkk.app` 所在目录并执行：
+
+```bash
+xattr -dr com.apple.quarantine pingkk.app
+```
+
+然后再双击打开 `pingkk.app`。该命令只会清除此应用的下载隔离标记。
 
 ## 命令行用法
 

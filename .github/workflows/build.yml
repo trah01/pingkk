@@ -2,13 +2,10 @@ name: 构建全平台版本
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -20,139 +17,112 @@ permissions:
 
 jobs:
   windows-x64:
-    name: Windows x64 兼容版
+    name: ${{ matrix.name }}
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 兼容版（Qt 5）
+            package: pingkk-windows-x64-legacy
+            qt-version: "5.15.2"
+            qt-arch: win64_msvc2019_64
+            qt-major: 5
+            toolset: v142
+            modern: false
+          - name: Windows x64 现代版（Qt 6）
+            package: pingkk-windows-x64
+            qt-version: "6.8.3"
+            qt-arch: win64_msvc2022_64
+            qt-major: 6
+            toolset: v143
+            modern: true
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 安装 Qt 5.15 兼容版
+      - name: 安装 Qt ${{ matrix.qt-major }}
         uses: jurplel/install-qt-action@v4
         with:
-          version: "5.15.2"
-          arch: win64_msvc2019_64
+          version: ${{ matrix.qt-version }}
+          arch: ${{ matrix.qt-arch }}
           cache: true
 
-      - name: 配置 CMake
-        shell: pwsh
-        run: cmake -S . -B build-windows-x64 -A x64 -T v142 -DPINGKK_BUILD_GUI=ON -DPINGKK_QT_MAJOR=5
-
-      - name: 构建
-        run: cmake --build build-windows-x64 --config Release --parallel
-
-      - name: 整理 Windows x64 运行文件
+      - name: 配置与构建
         shell: pwsh
         run: |
-          cmake --install build-windows-x64 --config Release --prefix dist
-          windeployqt.exe --release --no-translations --no-plugins --no-opengl-sw --no-system-d3d-compiler --no-compiler-runtime dist/bin/pingkk-gui.exe
-          if ($LASTEXITCODE -ne 0) { throw "Qt deployment failed: $LASTEXITCODE" }
-          ./scripts/stage_windows_runtime.ps1 -Architecture x64
-          New-Item -ItemType Directory -Force dist/licenses | Out-Null
-          Copy-Item licenses/* dist/licenses/
-          @"
-          图形界面：运行 bin/pingkk-gui.exe
-          图形版已内置命令行程序，供图形界面测试和“安装命令行工具”功能使用。
-          "@ | Set-Content -Encoding utf8 dist/使用说明.txt
-          New-Item -ItemType Directory -Force dist-cli/bin, dist-cli/licenses | Out-Null
-          Copy-Item dist/bin/pingkk.exe dist-cli/bin/
-          Copy-Item licenses/* dist-cli/licenses/
-          @"
-          命令行：在终端执行 bin/pingkk.exe --help
-          "@ | Set-Content -Encoding utf8 dist-cli/使用说明.txt
-          New-Item -ItemType Directory -Force dist-portable/licenses | Out-Null
-          Copy-Item dist/bin/* dist-portable/ -Recurse
-          Copy-Item licenses/* dist-portable/licenses/
-          @"
-          双击 pingkk-gui.exe 即可运行，无需安装。
-          命令行：在当前目录打开终端并执行 pingkk.exe --help
-          "@ | Set-Content -Encoding utf8 dist-portable/使用说明.txt
+          cmake -S . -B build -A x64 -T ${{ matrix.toolset }} `
+            -DPINGKK_BUILD_GUI=ON -DPINGKK_QT_MAJOR=${{ matrix.qt-major }}
+          cmake --build build --config Release --parallel
 
-      - name: 生成 Windows x64 安装版
+      - name: 整理运行文件
+        shell: pwsh
+        run: |
+          cmake --install build --config Release --prefix dist
+          windeployqt.exe --release --no-translations --no-plugins `
+            --no-opengl-sw --no-system-d3d-compiler --no-compiler-runtime `
+            dist/bin/pingkk-gui.exe
+          if ($LASTEXITCODE -ne 0) { throw "Qt deployment failed: $LASTEXITCODE" }
+          ./scripts/prepare_windows_packages.ps1 `
+            -Architecture x64 -QtMajor ${{ matrix.qt-major }}
+
+      - name: 生成安装版和单文件版
         shell: pwsh
         run: |
           $isccCommand = Get-Command iscc.exe -ErrorAction SilentlyContinue
-          if ($isccCommand) {
-            $iscc = $isccCommand.Source
-          } else {
-            $iscc = @(
+          $iscc = if ($isccCommand) { $isccCommand.Source } else {
+            @(
               "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
               "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
             ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
-          if (-not $iscc) {
-            throw "GitHub Runner 中未找到 Inno Setup 6"
-          }
-          $appVersion = (Get-Content build-windows-x64/pingkk-version.txt).Trim()
-          & $iscc `
-            "/DSourceDir=$pwd\dist\bin" `
-            "/DOutputDir=$pwd" `
-            "/DAppVersion=$appVersion" `
-            packaging/windows/pingkk.iss
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup 构建失败，退出码：$LASTEXITCODE"
-          }
+          if (-not $iscc) { throw "GitHub Runner 中未找到 Inno Setup 6" }
+          $defines = @(
+            "/DSourceDir=$pwd\dist\bin",
+            "/DOutputDir=$pwd",
+            "/DAppVersion=$((Get-Content build/pingkk-version.txt).Trim())",
+            "/DPackageName=${{ matrix.package }}-setup"
+          )
+          if ('${{ matrix.modern }}' -eq 'true') { $defines += '/DModernWindows=1' }
+          & $iscc @defines packaging/windows/pingkk.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup 构建失败：$LASTEXITCODE" }
+          ./scripts/package_windows_portable.ps1 `
+            -SourceDir dist-portable -Architecture x64 `
+            -OutputName "${{ matrix.package }}-portable.exe"
+          Compress-Archive -Path dist-cli\* `
+            -DestinationPath "${{ matrix.package }}-cli.zip"
 
-      - name: 生成 Windows x64 单文件便携版
-        shell: pwsh
-        run: ./scripts/package_windows_portable.ps1 -SourceDir dist-portable -Architecture x64
-
-      - name: 验证单文件启动、CLI 和临时文件清理
-        shell: pwsh
-        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-x64-portable.exe -QtMajor 5
-
-      - name: 验证 Windows 高 DPI 清单
+      - name: 验证产物
         shell: pwsh
         run: |
-          $mt = Get-ChildItem "${env:ProgramFiles(x86)}/Windows Kits/10/bin/*/x64/mt.exe" |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $mt) { throw 'Manifest tool not found' }
-          $manifest = Join-Path $env:RUNNER_TEMP 'pingkk-gui.manifest'
-          & $mt.FullName '-inputresource:dist/bin/pingkk-gui.exe;#1' "-out:$manifest"
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot read embedded manifest' }
-          $content = Get-Content -Raw $manifest
-          if ($content -notmatch 'PerMonitorV2' -or $content -notmatch 'true/pm') {
-            throw 'Per-monitor DPI declarations are missing'
-          }
+          ./scripts/test_windows_portable.ps1 `
+            -Executable "${{ matrix.package }}-portable.exe" `
+            -QtMajor ${{ matrix.qt-major }}
+          ./scripts/check_windows_manifest.ps1 `
+            -Executable dist/bin/pingkk-gui.exe
 
-      - name: 检查 x64 兼容依赖与入口点
+      - name: 检查旧系统兼容依赖
+        if: matrix.modern == false
         shell: pwsh
         run: |
           python -m pip install pefile==2024.8.26
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot install PE inspector' }
-          python scripts/check_windows_compatibility.py dist-portable pingkk-windows-x64-portable.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Windows compatibility regression' }
+          python scripts/check_windows_compatibility.py `
+            dist-portable "${{ matrix.package }}-portable.exe"
 
-      - name: 压缩 Windows x64 命令行版
-        shell: pwsh
-        run: |
-          Compress-Archive -Path dist-cli\* -DestinationPath pingkk-windows-x64-cli.zip
-
-      - name: 上传 Windows x64 图形版
+      - name: 上传 Windows x64 产物
         uses: actions/upload-artifact@v4
         with:
-          name: pingkk-windows-x64-portable
-          path: pingkk-windows-x64-portable.exe
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Windows x64 命令行版
-        uses: actions/upload-artifact@v4
-        with:
-          name: pingkk-windows-x64-cli
-          path: pingkk-windows-x64-cli.zip
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Windows x64 安装版
-        uses: actions/upload-artifact@v4
-        with:
-          name: pingkk-windows-x64-installer
-          path: pingkk-windows-x64-setup.exe
+          name: ${{ matrix.package }}
+          path: |
+            ${{ matrix.package }}-portable.exe
+            ${{ matrix.package }}-setup.exe
+            ${{ matrix.package }}-cli.zip
           if-no-files-found: error
           retention-days: 14
 
   windows-arm64:
-    name: Windows ARM64
+    name: Windows ARM64（Qt 6）
     runs-on: windows-2022
     steps:
       - name: 检出代码
@@ -174,26 +144,18 @@ jobs:
           arch: win64_msvc2022_arm64_cross_compiled
           cache: true
 
-      - name: 配置 CMake
-        shell: pwsh
-        run: >-
-          cmake -S . -B build-windows-arm64 -A ARM64
-          -DPINGKK_QT_MAJOR=6
-          -DPINGKK_BUILD_GUI=ON
-          "-DQT_HOST_PATH=${{ runner.temp }}/qt-host/Qt/6.8.3/msvc2022_64"
-
-      - name: 构建
-        run: cmake --build build-windows-arm64 --config Release --parallel
-
-      - name: 整理 Windows ARM64 运行文件
+      - name: 配置与构建
         shell: pwsh
         run: |
-          cmake --install build-windows-arm64 --config Release --prefix dist
-          if ($LASTEXITCODE -ne 0) {
-            throw "CMake install failed: $LASTEXITCODE"
-          }
-          # Run x64 host tools, but query the ARM64 Qt libraries and plugins.
-          # Keep this configuration separate from the cached host installation.
+          cmake -S . -B build -A ARM64 `
+            -DPINGKK_QT_MAJOR=6 -DPINGKK_BUILD_GUI=ON `
+            "-DQT_HOST_PATH=${{ runner.temp }}/qt-host/Qt/6.8.3/msvc2022_64"
+          cmake --build build --config Release --parallel
+
+      - name: 整理运行文件
+        shell: pwsh
+        run: |
+          cmake --install build --config Release --prefix dist
           $hostBin = "${{ runner.temp }}/qt-host/Qt/6.8.3/msvc2022_64/bin"
           $deployTools = Join-Path $env:RUNNER_TEMP 'qt-arm64-deploy-tools'
           New-Item -ItemType Directory -Force $deployTools | Out-Null
@@ -204,94 +166,49 @@ jobs:
             throw 'ARM64 Qt installation not found in QT_ROOT_DIR'
           }
           $targetQt = $env:QT_ROOT_DIR.Replace('\', '/')
-          @"
-          [Paths]
-          Prefix=$targetQt
-          HostData=$targetQt
-          "@ | Set-Content -Encoding utf8 (Join-Path $deployTools 'qt.conf')
+          @("[Paths]", "Prefix=$targetQt", "HostData=$targetQt") |
+            Set-Content -Encoding utf8 (Join-Path $deployTools 'qt.conf')
           & (Join-Path $deployTools 'windeployqt.exe') `
             --qtpaths (Join-Path $deployTools 'qtpaths.exe') `
-            --release --no-translations --no-plugins --no-opengl-sw --no-system-d3d-compiler --no-compiler-runtime dist/bin/pingkk-gui.exe
-          if ($LASTEXITCODE -ne 0) {
-            throw "ARM64 Qt deployment failed: $LASTEXITCODE"
-          }
-          ./scripts/stage_windows_runtime.ps1 -Architecture arm64
-          New-Item -ItemType Directory -Force dist/licenses | Out-Null
-          Copy-Item licenses/* dist/licenses/
-          @"
-          图形界面：运行 bin/pingkk-gui.exe
-          图形版已内置命令行程序，供图形界面测试和“安装命令行工具”功能使用。
-          "@ | Set-Content -Encoding utf8 dist/使用说明.txt
-          New-Item -ItemType Directory -Force dist-cli/bin, dist-cli/licenses | Out-Null
-          Copy-Item dist/bin/pingkk.exe dist-cli/bin/
-          Copy-Item licenses/* dist-cli/licenses/
-          @"
-          命令行：在终端执行 bin/pingkk.exe --help
-          "@ | Set-Content -Encoding utf8 dist-cli/使用说明.txt
-          New-Item -ItemType Directory -Force dist-portable/licenses | Out-Null
-          Copy-Item dist/bin/* dist-portable/ -Recurse
-          Copy-Item licenses/* dist-portable/licenses/
-          @"
-          双击 pingkk-gui.exe 即可运行，无需安装。
-          命令行：在当前目录打开终端并执行 pingkk.exe --help
-          "@ | Set-Content -Encoding utf8 dist-portable/使用说明.txt
+            --release --no-translations --no-plugins --no-opengl-sw `
+            --no-system-d3d-compiler --no-compiler-runtime dist/bin/pingkk-gui.exe
+          if ($LASTEXITCODE -ne 0) { throw "ARM64 Qt deployment failed: $LASTEXITCODE" }
+          ./scripts/prepare_windows_packages.ps1 -Architecture arm64 -QtMajor 6
 
-      - name: 生成 Windows ARM64 安装版
+      - name: 生成安装版、单文件版和 CLI 包
         shell: pwsh
         run: |
           $isccCommand = Get-Command iscc.exe -ErrorAction SilentlyContinue
-          if ($isccCommand) {
-            $iscc = $isccCommand.Source
-          } else {
-            $iscc = @(
+          $iscc = if ($isccCommand) { $isccCommand.Source } else {
+            @(
               "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
               "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
             ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
-          if (-not $iscc) {
-            throw "GitHub Runner 中未找到 Inno Setup 6"
-          }
-          $appVersion = (Get-Content build-windows-arm64/pingkk-version.txt).Trim()
+          if (-not $iscc) { throw "GitHub Runner 中未找到 Inno Setup 6" }
           & $iscc `
-            "/DSourceDir=$pwd\dist\bin" `
-            "/DOutputDir=$pwd" `
-            "/DAppVersion=$appVersion" `
-            "/DTargetArch=arm64" `
+            "/DSourceDir=$pwd\dist\bin" "/DOutputDir=$pwd" `
+            "/DAppVersion=$((Get-Content build/pingkk-version.txt).Trim())" `
+            "/DTargetArch=arm64" "/DPackageName=pingkk-windows-arm64-setup" `
             packaging/windows/pingkk.iss
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup 构建失败，退出码：$LASTEXITCODE"
-          }
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup 构建失败：$LASTEXITCODE" }
+          ./scripts/package_windows_portable.ps1 `
+            -SourceDir dist-portable -Architecture arm64
+          Compress-Archive -Path dist-cli\* `
+            -DestinationPath pingkk-windows-arm64-cli.zip
 
-      - name: 生成 Windows arm64 单文件便携版
+      - name: 验证 Windows 高 DPI 清单
         shell: pwsh
-        run: ./scripts/package_windows_portable.ps1 -SourceDir dist-portable -Architecture arm64
+        run: ./scripts/check_windows_manifest.ps1 -Executable dist/bin/pingkk-gui.exe
 
-      - name: 压缩 Windows ARM64 命令行版
-        shell: pwsh
-        run: |
-          Compress-Archive -Path dist-cli\* -DestinationPath pingkk-windows-arm64-cli.zip
-
-      - name: 上传 Windows ARM64 图形版
+      - name: 上传 Windows ARM64 产物
         uses: actions/upload-artifact@v4
         with:
-          name: pingkk-windows-arm64-portable
-          path: pingkk-windows-arm64-portable.exe
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Windows ARM64 命令行版
-        uses: actions/upload-artifact@v4
-        with:
-          name: pingkk-windows-arm64-cli
-          path: pingkk-windows-arm64-cli.zip
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Windows ARM64 安装版
-        uses: actions/upload-artifact@v4
-        with:
-          name: pingkk-windows-arm64-installer
-          path: pingkk-windows-arm64-setup.exe
+          name: pingkk-windows-arm64
+          path: |
+            pingkk-windows-arm64-portable.exe
+            pingkk-windows-arm64-setup.exe
+            pingkk-windows-arm64-cli.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -303,10 +220,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: pingkk-windows-arm64-portable
-      - name: 验证单文件启动、CLI 和临时文件清理
+          name: pingkk-windows-arm64
+      - name: 验证启动、CLI 和临时文件清理
         shell: pwsh
-        run: ./scripts/test_windows_portable.ps1 -Executable pingkk-windows-arm64-portable.exe
+        run: >-
+          ./scripts/test_windows_portable.ps1
+          -Executable pingkk-windows-arm64-portable.exe -QtMajor 6
 
   macos:
     name: ${{ matrix.name }}
@@ -319,14 +238,14 @@ jobs:
             runner: macos-15-intel
             artifact: pingkk-macos-intel
             qt-version: "5.15.2"
-            qt-major: "5"
+            qt-major: 5
             architecture: x86_64
             deployment-target: "10.13"
           - name: macOS Apple Silicon
             runner: macos-15
             artifact: pingkk-macos-arm64
             qt-version: "6.2.4"
-            qt-major: "6"
+            qt-major: 6
             architecture: arm64
             deployment-target: "11.0"
 
@@ -341,22 +260,24 @@ jobs:
           arch: clang_64
           cache: true
 
-      - name: 配置 CMake
-        run: >-
-          cmake -S . -B build-macos
-          -DCMAKE_BUILD_TYPE=Release
-          -DPINGKK_BUILD_GUI=ON
-          -DPINGKK_QT_MAJOR=${{ matrix.qt-major }}
-          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.architecture }}
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
-
-      - name: 构建
-        run: cmake --build build-macos --parallel
-
-      - name: 整理 macOS 运行文件
+      - name: 配置与构建
         run: |
-          cmake --install build-macos --prefix dist-all
-          bash scripts/package_macos.sh "${{ matrix.architecture }}" "${{ matrix.deployment-target }}"
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DPINGKK_BUILD_GUI=ON -DPINGKK_QT_MAJOR=${{ matrix.qt-major }} \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.architecture }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
+          cmake --build build --parallel
+          cmake --install build --prefix dist-all
+
+      - name: 打包、ad-hoc 签名与兼容性检查
+        run: >-
+          bash scripts/package_macos.sh
+          "${{ matrix.architecture }}" "${{ matrix.deployment-target }}"
+
+      - name: 生成发布包
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p dist-gui dist-cli/bin
           cp -R dist-all/pingkk.app dist-gui/pingkk.app
           cp dist-all/bin/pingkk dist-cli/bin/pingkk
@@ -364,30 +285,22 @@ jobs:
           cp -R licenses dist-cli/licenses
           printf '%s\n' \
             '图形界面：打开 pingkk.app' \
-            '图形版已内置命令行程序，供图形界面测试和“安装命令行工具”功能使用。' \
+            '若 macOS 拦截应用，请在终端执行：xattr -dr com.apple.quarantine pingkk.app' \
+            '图形版已内置命令行程序。' \
             > dist-gui/使用说明.txt
-          printf '%s\n' \
-            '命令行：运行 bin/pingkk --help' \
+          printf '%s\n' '命令行：运行 bin/pingkk --help' \
             > dist-cli/使用说明.txt
-
-      - name: 压缩 macOS 图形版与命令行版
-        run: |
-          tar -C dist-gui -cJf "${{ matrix.artifact }}-gui.tar.xz" .
+          (cd dist-gui && ditto -c -k --sequesterRsrc . \
+            "../${{ matrix.artifact }}-gui.zip")
           tar -C dist-cli -czf "${{ matrix.artifact }}-cli.tar.gz" .
 
-      - name: 上传 macOS 图形版
+      - name: 上传 macOS 产物
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}-gui
-          path: ${{ matrix.artifact }}-gui.tar.xz
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 macOS 命令行版
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}-cli
-          path: ${{ matrix.artifact }}-cli.tar.gz
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}-gui.zip
+            ${{ matrix.artifact }}-cli.tar.gz
           if-no-files-found: error
           retention-days: 14
 
@@ -402,20 +315,14 @@ jobs:
             artifact: pingkk-linux-x86
             platform: linux/386
             deb-arch: i386
-            build-dir: build-linux-x86
-            output-dir: dist-linux-x86
           - name: Linux x64（含麒麟/统信 x64）
             artifact: pingkk-linux-x64
             platform: linux/amd64
             deb-arch: amd64
-            build-dir: build-linux-x64
-            output-dir: dist-linux-x64
           - name: Linux ARM64（含麒麟/统信 ARM64）
             artifact: pingkk-linux-arm64
             platform: linux/arm64
             deb-arch: arm64
-            build-dir: build-linux-arm64
-            output-dir: dist-linux-arm64
 
     steps:
       - name: 检出代码
@@ -426,17 +333,13 @@ jobs:
         with:
           platforms: all
 
-      - name: 在目标架构容器中构建并打包
+      - name: 在目标架构容器中构建、打包与验证
         shell: bash
         run: |
-          docker run --rm \
-            --platform "${{ matrix.platform }}" \
-            --volume "${GITHUB_WORKSPACE}:/workspace" \
-            --workdir /workspace \
-            debian:buster-slim \
-            bash -lc '
+          docker run --rm --platform "${{ matrix.platform }}" \
+            --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace \
+            debian:buster-slim bash -lc '
               set -euo pipefail
-              # Build against glibc 2.28 and Qt 5.11; do not raise the runtime baseline.
               printf "%s\n" \
                 "deb [check-valid-until=no] http://archive.debian.org/debian buster main" \
                 "deb [check-valid-until=no] http://archive.debian.org/debian-security buster/updates main" \
@@ -444,67 +347,42 @@ jobs:
               rm -f /etc/apt/sources.list.d/*
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                build-essential cmake ca-certificates dpkg-dev qtbase5-dev qtbase5-dev-tools xvfb xauth
-              cmake -S . -B "${{ matrix.build-dir }}" \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DPINGKK_BUILD_GUI=ON
-              cmake --build "${{ matrix.build-dir }}" --parallel
-              bash scripts/package_linux.sh \
-                "${{ matrix.build-dir }}" \
-                "${{ matrix.output-dir }}-gui" \
-                "${{ matrix.output-dir }}-cli"
-              bash scripts/package_linux_deb.sh \
-                "${{ matrix.output-dir }}-gui" \
-                "${{ matrix.deb-arch }}" \
-                "$(cat "${{ matrix.build-dir }}/pingkk-version.txt")" \
+                build-essential cmake ca-certificates dpkg-dev \
+                qtbase5-dev qtbase5-dev-tools xvfb xauth
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPINGKK_BUILD_GUI=ON
+              cmake --build build --parallel
+              bash scripts/package_linux.sh build dist-gui dist-cli
+              bash scripts/package_linux_deb.sh dist-gui "${{ matrix.deb-arch }}" \
+                "$(cat build/pingkk-version.txt)" \
                 "/workspace/${{ matrix.artifact }}-installer.deb"
-              xvfb-run -a "${{ matrix.output-dir }}-gui/run-pingkk.sh" --smoke-test
+              xvfb-run -a dist-gui/run-pingkk.sh --smoke-test
               dpkg -i "/workspace/${{ matrix.artifact }}-installer.deb"
               xvfb-run -a /usr/bin/pingkk-gui --smoke-test
             '
 
-      - name: 压缩 Linux 图形版与命令行版
+      - name: 生成发布包
         run: |
-          tar -C "${{ matrix.output-dir }}-gui" -cJf "${{ matrix.artifact }}-portable.tar.xz" .
-          tar -C "${{ matrix.output-dir }}-cli" -czf "${{ matrix.artifact }}-cli.tar.gz" .
+          tar -C dist-gui -cJf "${{ matrix.artifact }}-portable.tar.xz" .
+          tar -C dist-cli -czf "${{ matrix.artifact }}-cli.tar.gz" .
 
-      - name: 上传 Linux 便携版
+      - name: 上传 Linux 产物
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}-portable
-          path: ${{ matrix.artifact }}-portable.tar.xz
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Linux 命令行版
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}-cli
-          path: ${{ matrix.artifact }}-cli.tar.gz
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 上传 Linux 安装版
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}-installer
-          path: ${{ matrix.artifact }}-installer.deb
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}-portable.tar.xz
+            ${{ matrix.artifact }}-installer.deb
+            ${{ matrix.artifact }}-cli.tar.gz
           if-no-files-found: error
           retention-days: 14
 
   release:
     name: 发布 GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs:
-      - windows-arm64
-      - windows-arm64-test
-      - windows-x64
-      - macos
-      - linux
+    needs: [windows-x64, windows-arm64, windows-arm64-test, macos, linux]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-
     steps:
       - name: 下载全部平台产物
         uses: actions/download-artifact@v4
@@ -516,17 +394,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-files
-          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.tar.xz' -o -name '*.exe' -o -name '*.deb' \) \
+          find release-assets -type f \
+            \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.tar.xz' \
+               -o -name '*.exe' -o -name '*.deb' \) \
             -exec cp '{}' release-files/ \;
-          expected=19
+          expected=22
           actual="$(find release-files -maxdepth 1 -type f | wc -l | tr -d ' ')"
-          if [ "${actual}" -ne "${expected}" ]; then
-            echo "预期 ${expected} 个平台压缩包，实际找到 ${actual} 个" >&2
+          if [[ "$actual" -ne "$expected" ]]; then
+            echo "预期 ${expected} 个发布文件，实际找到 ${actual} 个" >&2
             exit 1
           fi
           du -h release-files/* | sort -h >> "$GITHUB_STEP_SUMMARY"
           cd release-files
-          sha256sum *.zip *.tar.gz *.tar.xz *.exe *.deb > SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
 
       - name: 创建或更新 Release
         shell: bash
@@ -535,11 +415,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" release-files/* --clobber
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-files/* --clobber
           else
-            gh release create "${GITHUB_REF_NAME}" release-files/* \
-              --verify-tag \
-              --generate-notes \
-              --title "pingkk ${GITHUB_REF_NAME}"
+            gh release create "$GITHUB_REF_NAME" release-files/* \
+              --verify-tag --generate-notes --title "pingkk $GITHUB_REF_NAME"
           fi

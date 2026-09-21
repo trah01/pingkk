@@ -49,7 +49,7 @@ private:
     QLabel* timeoutTitle_;
     QLabel* outputTitle_;
     QLineEdit* targetEdit_;
-    QSpinBox* portSpin_;
+    QLineEdit* portEdit_;
     QSpinBox* timeoutSpin_;
     QComboBox* protocolCombo_;
     QComboBox* languageCombo_;

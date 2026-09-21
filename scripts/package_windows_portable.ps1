@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$SourceDir,
-    [Parameter(Mandatory)][ValidateSet('x64', 'arm64')][string]$Architecture
+    [Parameter(Mandatory)][ValidateSet('x64', 'arm64')][string]$Architecture,
+    [string]$OutputName = "pingkk-windows-$Architecture-portable.exe"
 )
 $ErrorActionPreference = 'Stop'
 $source = (Resolve-Path -LiteralPath $SourceDir).Path
@@ -42,4 +43,4 @@ cmake -S packaging/windows/portable -B "build-portable-$Architecture" -A $cmakeA
 if ($LASTEXITCODE -ne 0) { throw 'Launcher configuration failed' }
 cmake --build "build-portable-$Architecture" --config Release --parallel
 if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed' }
-Copy-Item "build-portable-$Architecture/Release/pingkk_portable.exe" "pingkk-windows-$Architecture-portable.exe"
+Copy-Item "build-portable-$Architecture/Release/pingkk_portable.exe" $OutputName

@@ -11,6 +11,9 @@
 #ifndef TargetArch
   #define TargetArch "x64"
 #endif
+#ifndef PackageName
+  #define PackageName "pingkk-windows-" + TargetArch + "-setup"
+#endif
 
 [Setup]
 AppId={{DDF63DE8-6F73-4F94-B5E9-AD8AEBA82EF2}
@@ -25,18 +28,21 @@ DefaultDirName={autopf}\pingkk
 DefaultGroupName=ping看看
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=pingkk-windows-{#TargetArch}-setup
+OutputBaseFilename={#PackageName}
 SetupIconFile=..\..\assets\pingkk-icon.ico
 UninstallDisplayIcon={app}\pingkk-gui.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-#if TargetArch == "arm64"
+#if TargetArch == "arm64" || defined(ModernWindows)
 MinVersion=10.0.17763
+#else
+MinVersion=6.1sp1
+#endif
+#if TargetArch == "arm64"
 ArchitecturesAllowed=arm64
 ArchitecturesInstallIn64BitMode=arm64
 #else
-MinVersion=6.1sp1
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 #endif

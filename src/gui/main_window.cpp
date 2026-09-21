@@ -80,6 +80,23 @@ void configureComboBox(QComboBox* comboBox) {
     comboBox->setView(view);
 }
 
+bool normalizePorts(const QString& input, QString& normalized) {
+    QString value = input.trimmed();
+    value.replace(QString::fromUtf8("，"), ",");
+    const QStringList items = value.split(',');
+    QStringList ports;
+    for (int index = 0; index < items.size(); ++index) {
+        const QString item = items.at(index).trimmed();
+        bool validNumber = false;
+        const int port = item.toInt(&validNumber);
+        if (!validNumber || port < 1 || port > 65535) return false;
+        ports << QString::number(port);
+    }
+    if (ports.isEmpty()) return false;
+    normalized = ports.join(",");
+    return true;
+}
+
 #if !defined(Q_OS_MACOS) && !defined(Q_OS_MAC)
 bool copyExecutable(const QString& source,
                     const QString& destination,
@@ -185,11 +202,9 @@ void MainWindow::buildInterface() {
     targetEdit_ = new QLineEdit;
     targetEdit_->setClearButtonEnabled(true);
     portTitle_ = new QLabel;
-    portSpin_ = new QSpinBox;
-    portSpin_->setRange(1, 65535);
-    portSpin_->setValue(80);
-    portSpin_->setFixedWidth(150);
-    portSpin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    portEdit_ = new QLineEdit("80");
+    portEdit_->setClearButtonEnabled(true);
+    portEdit_->setFixedWidth(190);
     protocolTitle_ = new QLabel;
     protocolCombo_ = new FixedPopupComboBox;
     protocolCombo_->addItems(QStringList()
@@ -214,7 +229,7 @@ void MainWindow::buildInterface() {
     controls->addWidget(targetTitle_, 0, 0);
     controls->addWidget(targetEdit_, 0, 1, 1, 3);
     controls->addWidget(portTitle_, 0, 4);
-    controls->addWidget(portSpin_, 0, 5);
+    controls->addWidget(portEdit_, 0, 5);
     controls->addWidget(protocolTitle_, 1, 0);
     controls->addWidget(protocolCombo_, 1, 1);
     controls->addWidget(timeoutTitle_, 1, 2);
@@ -322,6 +337,7 @@ void MainWindow::buildInterface() {
     connect(exportButton_, SIGNAL(clicked()), this, SLOT(copyReportImage()));
     connect(clearButton_, SIGNAL(clicked()), this, SLOT(clearOutput()));
     connect(targetEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
+    connect(portEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
 }
 
 void MainWindow::updateTexts() {
@@ -329,7 +345,11 @@ void MainWindow::updateTexts() {
     currentIpTitle_->setText(english_ ? "Local IP" : QString::fromUtf8("当前 IP"));
     targetTitle_->setText(english_ ? "Target" : QString::fromUtf8("目标地址"));
     targetEdit_->setPlaceholderText(english_ ? "IP, domain, or URL" : QString::fromUtf8("IP、域名或完整网址"));
-    portTitle_->setText(english_ ? "Port" : QString::fromUtf8("目标端口"));
+    portTitle_->setText(english_ ? "Ports" : QString::fromUtf8("目标端口"));
+    portEdit_->setPlaceholderText(english_ ? "80, 443, 8080"
+                                           : QString::fromUtf8("多个端口用逗号分隔"));
+    portEdit_->setToolTip(english_ ? "Separate multiple ports with commas."
+                                   : QString::fromUtf8("多个端口使用逗号分隔，例如 80, 443, 8080。"));
     protocolTitle_->setText(english_ ? "Function" : QString::fromUtf8("功能选择"));
     timeoutTitle_->setText(english_ ? "Timeout" : QString::fromUtf8("超时时间"));
     protocolCombo_->setItemText(4, english_ ? "Route trace" : QString::fromUtf8("路由追踪"));
@@ -373,6 +393,14 @@ void MainWindow::startTest(bool continuous) {
         showInputError(english_ ? "Enter a target address." : QString::fromUtf8("请输入目标地址。"));
         return;
     }
+    QString ports;
+    if (protocolCombo_->currentIndex() < 3 && !normalizePorts(portEdit_->text(), ports)) {
+        showInputError(english_ ? "Enter ports from 1 to 65535, separated with commas."
+                                : QString::fromUtf8("请输入 1 到 65535 之间的端口，多个端口用逗号分隔。"));
+        portEdit_->setFocus();
+        portEdit_->selectAll();
+        return;
+    }
     const QString executable = commandPath();
     if (!QFileInfo(executable).isExecutable()) {
         showInputError(english_ ? "The pingkk command was not found beside the app."
@@ -388,7 +416,8 @@ void MainWindow::startTest(bool continuous) {
         arguments << target;
     }
     if (protocolCombo_->currentIndex() < 3) {
-        arguments << QString::number(portSpin_->value()) << protocolArgument();
+        portEdit_->setText(ports);
+        arguments << ports << protocolArgument();
     }
     arguments << "--timeout" << QString::number(timeoutSpin_->value());
     outputEdit_->appendPlainText(english_ ? "Starting test..." : QString::fromUtf8("开始测试……"));
@@ -452,13 +481,13 @@ void MainWindow::updateProtocolFields(int index) {
     const bool route = index == 4;
     const bool idle = singleButton_->isEnabled();
     portTitle_->setEnabled(needsPort);
-    portSpin_->setEnabled(needsPort && idle);
+    portEdit_->setEnabled(needsPort && idle);
     continuousButton_->setEnabled(!route && idle);
 }
 
 void MainWindow::setRunning(bool running) {
     targetEdit_->setEnabled(!running);
-    portSpin_->setEnabled(!running);
+    portEdit_->setEnabled(!running);
     timeoutSpin_->setEnabled(!running);
     protocolCombo_->setEnabled(!running);
     singleButton_->setEnabled(!running);

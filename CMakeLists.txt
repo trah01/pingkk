@@ -88,6 +88,12 @@ if(PINGKK_BUILD_GUI)
                 src/gui/windows.rc
                 ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk-version.rc
             )
+            if(MSVC)
+                target_link_options(pingkk_gui PRIVATE
+                    /MANIFEST:EMBED
+                    "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/src/gui/windows.manifest"
+                )
+            endif()
             set_target_properties(pingkk_gui PROPERTIES
                 OUTPUT_NAME pingkk-gui
                 WIN32_EXECUTABLE TRUE
