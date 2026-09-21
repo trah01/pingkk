@@ -25,6 +25,7 @@
 #include <QPainter>
 #include <QProcess>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -68,6 +69,27 @@ protected:
         popup->setFixedWidth(width());
         popup->move(mapToGlobal(QPoint(0, height() + 4)));
     }
+};
+
+class UnitSpinBox : public QSpinBox {
+public:
+    explicit UnitSpinBox(const QString& unit, QWidget* parent = 0)
+        : QSpinBox(parent), unitLabel_(new QLabel(unit, this)) {
+        unitLabel_->setObjectName("inputUnit");
+        unitLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        unitLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
+        lineEdit()->setTextMargins(0, 0, 32, 0);
+    }
+
+protected:
+    void resizeEvent(QResizeEvent* event) {
+        QSpinBox::resizeEvent(event);
+        unitLabel_->setGeometry(width() - 36, 0, 28, height());
+        unitLabel_->raise();
+    }
+
+private:
+    QLabel* unitLabel_;
 };
 
 void configureComboBox(QComboBox* comboBox) {
@@ -161,7 +183,7 @@ void MainWindow::buildInterface() {
 
     QWidget* central = new QWidget(this);
     QVBoxLayout* root = new QVBoxLayout(central);
-    root->setContentsMargins(22, 18, 22, 18);
+    root->setContentsMargins(22, 10, 22, 6);
     root->setSpacing(14);
 
     QHBoxLayout* topBar = new QHBoxLayout;
@@ -171,7 +193,7 @@ void MainWindow::buildInterface() {
     currentIpValue_->setObjectName("addressLabel");
     QFrame* currentIpPanel = new QFrame;
     currentIpPanel->setObjectName("currentIpPanel");
-    currentIpPanel->setFixedHeight(38);
+    currentIpPanel->setFixedHeight(34);
     QHBoxLayout* currentIpLayout = new QHBoxLayout(currentIpPanel);
     currentIpLayout->setContentsMargins(12, 0, 12, 0);
     currentIpLayout->setSpacing(10);
@@ -189,7 +211,6 @@ void MainWindow::buildInterface() {
     topBar->addStretch();
     topBar->addWidget(installButton_);
     topBar->addWidget(languageCombo_);
-    root->addLayout(topBar);
 
     QFrame* controlPanel = new QFrame;
     controlPanel->setObjectName("controlPanel");
@@ -213,10 +234,9 @@ void MainWindow::buildInterface() {
     protocolCombo_->setFixedWidth(160);
     configureComboBox(protocolCombo_);
     timeoutTitle_ = new QLabel;
-    timeoutSpin_ = new QSpinBox;
+    timeoutSpin_ = new UnitSpinBox("ms");
     timeoutSpin_->setRange(100, 60000);
     timeoutSpin_->setValue(1000);
-    timeoutSpin_->setSuffix(" ms");
     timeoutSpin_->setFixedWidth(125);
     timeoutSpin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
     singleButton_ = new QPushButton;
@@ -227,7 +247,9 @@ void MainWindow::buildInterface() {
     stopButton_->setVisible(false);
 
     controls->addWidget(targetTitle_, 0, 0);
-    controls->addWidget(targetEdit_, 0, 1, 1, 5);
+    controls->addWidget(targetEdit_, 0, 1, 1, 3);
+    controls->addWidget(portTitle_, 0, 4);
+    controls->addWidget(portEdit_, 0, 5);
     controls->addWidget(protocolTitle_, 1, 0);
     controls->addWidget(protocolCombo_, 1, 1);
     controls->addWidget(timeoutTitle_, 1, 2);
@@ -235,10 +257,12 @@ void MainWindow::buildInterface() {
     controls->addWidget(singleButton_, 1, 4);
     controls->addWidget(continuousButton_, 1, 5);
     controls->addWidget(stopButton_, 1, 5);
-    controls->addWidget(portTitle_, 2, 0);
-    controls->addWidget(portEdit_, 2, 1);
-    controls->setColumnStretch(1, 1);
-    root->addWidget(controlPanel);
+    QVBoxLayout* inputArea = new QVBoxLayout;
+    inputArea->setContentsMargins(0, 0, 0, 0);
+    inputArea->setSpacing(8);
+    inputArea->addLayout(topBar);
+    inputArea->addWidget(controlPanel);
+    root->addLayout(inputArea);
 
     QHBoxLayout* outputHeader = new QHBoxLayout;
     outputTitle_ = new QLabel;
@@ -257,7 +281,6 @@ void MainWindow::buildInterface() {
     outputEdit_->setReadOnly(true);
     outputEdit_->setObjectName("outputEdit");
     outputEdit_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    root->addWidget(outputEdit_, 1);
 
     QLabel* projectLink = new QLabel(
         QString("v%2 · <a href=\"%1\">项目地址</a>")
@@ -270,7 +293,12 @@ void MainWindow::buildInterface() {
     footerBar->setContentsMargins(0, 0, 0, 0);
     footerBar->addWidget(projectLink);
     footerBar->addStretch();
-    root->addLayout(footerBar);
+    QVBoxLayout* outputArea = new QVBoxLayout;
+    outputArea->setContentsMargins(0, 0, 0, 0);
+    outputArea->setSpacing(4);
+    outputArea->addWidget(outputEdit_, 1);
+    outputArea->addLayout(footerBar);
+    root->addLayout(outputArea, 1);
     setCentralWidget(central);
 
     setStyleSheet(
@@ -281,19 +309,20 @@ void MainWindow::buildInterface() {
         "QFrame#controlPanel { background: #f8f9fb; border: 1px solid #dfe3e8; border-radius: 12px; }"
         "QFrame#currentIpPanel { background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLabel#mutedLabel { color: #68717d; }"
+        "QLabel#inputUnit { color: #68717d; background: transparent; font-size: 14px; }"
         "QLabel#addressLabel, QLabel#sectionTitle { font-weight: 600; color: #18202a; }"
-        "QLineEdit, QSpinBox, QComboBox { min-height: 36px; padding: 0 10px; "
-        "background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
+        "QLineEdit, QSpinBox, QComboBox { min-height: 36px; padding: 0 6px; "
+        "font-size: 15px; background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid #1769aa; }"
-        "QComboBox { padding-right: 42px; }"
+        "QComboBox { padding-right: 36px; }"
         "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; "
-        "width: 38px; border: 0; border-left: 1px solid #e1e5e9; background: transparent; }"
+        "width: 32px; border: 0; border-left: 1px solid #e1e5e9; background: transparent; }"
         "QComboBox::down-arrow { image: none; }"
-        "QComboBox#languageCombo { padding: 0 28px 0 10px; }"
+        "QComboBox#languageCombo { min-height: 32px; padding: 0 28px 0 8px; }"
         "QComboBox#languageCombo::drop-down { width: 26px; }"
         "QListView#comboPopup { background: #ffffff; border: 1px solid #cbd1d8; "
         "border-radius: 8px; padding: 5px; outline: 0; color: #18202a; }"
-        "QListView#comboPopup::item { min-height: 38px; padding: 0 10px; border-radius: 5px; }"
+        "QListView#comboPopup::item { min-height: 38px; padding: 0 8px; border-radius: 5px; }"
         "QListView#comboPopup::item:hover { background: #f1f5f8; }"
         "QListView#comboPopup::item:selected { background: #e7f1f8; color: #124d78; }"
         "QPushButton { min-height: 36px; padding: 0 14px; border: 1px solid #cbd1d8; "
@@ -304,7 +333,7 @@ void MainWindow::buildInterface() {
         "QPushButton#primaryButton { color: #ffffff; background: #1769aa; border-color: #1769aa; font-weight: 600; }"
         "QPushButton#primaryButton:hover { background: #13598f; }"
         "QPushButton#dangerButton { color: #a42b2b; border-color: #d8a7a7; }"
-        "QPushButton#quietButton { color: #394451; background: transparent; }"
+        "QPushButton#quietButton { min-height: 32px; color: #394451; background: transparent; }"
         "QPushButton#textButton { border: 0; color: #1769aa; padding: 0 8px; }"
         "QPlainTextEdit#outputEdit { background: #fbfcfd; border: 1px solid #dfe3e8; "
         "border-radius: 10px; padding: 12px; "
