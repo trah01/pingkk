@@ -3,7 +3,7 @@ if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
 
-project(pingkk VERSION 0.1.1 LANGUAGES CXX)
+project(pingkk VERSION 0.1.2 LANGUAGES CXX)
 
 # Keep our executables (including the separately installed CLI) self-contained.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -38,6 +38,7 @@ endif()
 add_library(pingkk_core
     src/core.cpp
     src/diagnostics.cpp
+    src/network_check.cpp
 )
 target_include_directories(pingkk_core PUBLIC
     include
@@ -50,7 +51,7 @@ if(WIN32)
     else()
         add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
     endif()
-    target_link_libraries(pingkk_core PUBLIC ws2_32 iphlpapi)
+    target_link_libraries(pingkk_core PUBLIC ws2_32 iphlpapi winhttp)
 endif()
 
 if(APPLE)

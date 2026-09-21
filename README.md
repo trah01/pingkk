@@ -8,7 +8,10 @@
 
 - TCP、UDP 端口测试
 - Ping 和路由追踪
+- 一键网络体检：检查本机出口、默认网关、DNS、代理和 HTTPS 直连
+- DNS 对比诊断：对比系统 DNS、当前 DNS、阿里 DNS 和腾讯 DNS
 - 持续测试与自定义超时时间
+- 可选高级输出：显示单包大小、丢包率、时延范围、波动及各检测功能的汇总统计
 - 一键导出测试报告
 
 ## 界面预览
@@ -96,9 +99,17 @@ pingkk -t example.com 443 tcp
 # Ping 和路由追踪
 pingkk example.com
 pingkk example.com -r
+
+# 一键网络体检与 DNS 对比
+pingkk --checkup
+pingkk --dns example.com
+
+# 输出更详细的诊断信息
+pingkk --advanced example.com 443 tcp
+pingkk -a --dns example.com
 ```
 
-端口类型可使用 `tcp`、`udp` 或 `all`。选项 `-t`、`-r`/`--route` 和 `--timeout`/`-w` 可放在命令中的任意位置。
+端口类型可使用 `tcp`、`udp` 或 `all`。选项 `-t`、`-r`/`--route`、`-a`/`--advanced` 和 `--timeout`/`-w` 可放在命令中的任意位置。高级输出默认关闭，只有指定 `-a` 或 `--advanced` 时才会显示单包大小、丢包率、时延范围、波动及对应功能的汇总统计。
 
 ```bash
 # 自定义超时时间（毫秒）

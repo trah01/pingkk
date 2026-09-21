@@ -5,6 +5,7 @@
 #include <QString>
 
 class QComboBox;
+class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -38,6 +39,8 @@ private:
     QString protocolArgument() const;
     void setRunning(bool running);
     void showInputError(const QString& message);
+    void appendOutputLine(const QString& line);
+    void handleOutputLine(const QString& line);
 
     bool english_;
     bool stopRequested_;
@@ -56,6 +59,7 @@ private:
     QSpinBox* timeoutSpin_;
     QComboBox* protocolCombo_;
     QComboBox* languageCombo_;
+    QCheckBox* advancedCheckBox_;
     QPushButton* singleButton_;
     QPushButton* continuousButton_;
     QPushButton* stopButton_;
@@ -65,6 +69,7 @@ private:
     QPlainTextEdit* outputEdit_;
     QProcess* process_;
     QString pendingOutputLine_;
+    bool lastOutputWasBlank_;
 };
 
 #endif

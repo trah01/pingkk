@@ -12,6 +12,8 @@ struct PingResult {
     std::string replyAddress;
     long elapsedMilliseconds;
     int ttl;
+    int payloadBytes;
+    int packetBytes;
     std::string error;
 };
 

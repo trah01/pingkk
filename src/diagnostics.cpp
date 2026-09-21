@@ -80,7 +80,8 @@ bool sendWindowsEcho(const ResolvedTarget& target,
         return false;
     }
 
-    const char payload[] = "pingkk";
+    unsigned char payload[16] = {0};
+    std::memcpy(payload, "pingkk", sizeof("pingkk") - 1);
     std::vector<unsigned char> reply(sizeof(ICMP_ECHO_REPLY) + sizeof(payload) + 16, 0);
     IP_OPTION_INFORMATION options;
     std::memset(&options, 0, sizeof(options));
@@ -88,8 +89,8 @@ bool sendWindowsEcho(const ResolvedTarget& target,
     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     const DWORD count = IcmpSendEcho(handle,
                                      destination,
-                                     const_cast<char*>(payload),
-                                     static_cast<WORD>(sizeof(payload) - 1),
+                                     payload,
+                                     static_cast<WORD>(sizeof(payload)),
                                      &options,
                                      &reply[0],
                                      static_cast<DWORD>(reply.size()),
@@ -296,7 +297,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
 PingResult ping(const ResolvedTarget& target,
                 int timeoutMilliseconds,
                 unsigned short sequence) {
-    PingResult result = {false, std::string(), 0, -1, std::string()};
+    PingResult result = {false, std::string(), 0, -1, 16, 44, std::string()};
     bool ttlExpired = false;
 #ifdef _WIN32
     sendWindowsEcho(target, 64, timeoutMilliseconds, result, ttlExpired);
@@ -310,7 +311,7 @@ TraceHop traceHop(const ResolvedTarget& target,
                   int hop,
                   int timeoutMilliseconds,
                   unsigned short sequence) {
-    PingResult pingResult = {false, std::string(), 0, -1, std::string()};
+    PingResult pingResult = {false, std::string(), 0, -1, 16, 44, std::string()};
     bool ttlExpired = false;
 #ifdef _WIN32
     const bool responded = sendWindowsEcho(target,

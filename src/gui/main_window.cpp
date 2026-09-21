@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QAbstractSpinBox>
 #include <QClipboard>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDialog>
@@ -29,6 +30,9 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QSyntaxHighlighter>
+#include <QTextBlockFormat>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QVBoxLayout>
 
@@ -53,7 +57,7 @@ protected:
         pen.setCapStyle(Qt::RoundCap);
         pen.setJoinStyle(Qt::RoundJoin);
         painter.setPen(pen);
-        const int inset = objectName() == "languageCombo" ? 13 : 19;
+        const int inset = 13;
         const qreal centerX = width() - inset;
         const qreal centerY = height() / 2.0;
         QPolygonF arrow;
@@ -90,6 +94,99 @@ protected:
 
 private:
     QLabel* unitLabel_;
+};
+
+enum LogTone {
+    LogToneDefault,
+    LogToneSuccess,
+    LogToneFailure,
+    LogToneWarning,
+    LogToneSection
+};
+
+LogTone logToneForLine(const QString& text) {
+    const QString line = text.trimmed();
+    if (line.isEmpty()) return LogToneDefault;
+
+    const bool reportedFailure = line.contains(QString::fromUtf8("失败")) &&
+                                 !line.contains(QString::fromUtf8("失败：0"));
+    const bool reportedUnreachable = line.contains(QString::fromUtf8("不通：")) &&
+                                     !line.contains(QString::fromUtf8("不通：0"));
+    const bool reportedLoss = line.contains(QString::fromUtf8("丢失：")) &&
+                              !line.contains(QString::fromUtf8("丢失：0"));
+    const bool reportedUnknown = line.contains(QString::fromUtf8("状态未知")) &&
+                                 !line.contains(QString::fromUtf8("状态未知：0"));
+    const bool failed = line.contains(QString::fromUtf8("[失败]")) ||
+                        reportedFailure || reportedUnreachable || reportedLoss ||
+                        line.contains(QString::fromUtf8("协议不通")) ||
+                        line.contains(QString::fromUtf8("项不通")) ||
+                        line == QString::fromUtf8("请求超时") ||
+                        line.startsWith(QString::fromUtf8("无法")) ||
+                        line.contains(QString::fromUtf8("异常")) ||
+                        line.contains(QString::fromUtf8("尚未响应")) ||
+                        line.contains(" failed", Qt::CaseInsensitive) ||
+                        line.contains(" error", Qt::CaseInsensitive);
+    const bool succeeded = line.contains(QString::fromUtf8("[正常]")) ||
+                               line.contains(QString::fromUtf8("协议连通")) ||
+                               line.startsWith(QString::fromUtf8("来自 ")) ||
+                               line.contains(QString::fromUtf8("基础网络状态正常")) ||
+                               line.contains(QString::fromUtf8("全部连通")) ||
+                               line.contains(QString::fromUtf8("项连通")) ||
+                               line.contains(QString::fromUtf8("路由追踪完成")) ||
+                               line.contains(QString::fromUtf8("返回结果一致")) ||
+                               line.contains(QString::fromUtf8("丢失：0")) ||
+                               (line.contains(QString::fromUtf8("不通：0")) &&
+                                line.contains(QString::fromUtf8("状态未知：0"))) ||
+                               line.contains(QString::fromUtf8("失败：0")) ||
+                               (!line.isEmpty() && line.at(0).isDigit() &&
+                                line.contains(QString::fromUtf8("毫秒"))) ||
+                               (line.contains(" all ", Qt::CaseInsensitive) &&
+                                line.contains("passed", Qt::CaseInsensitive));
+    const bool warning = line.contains(QString::fromUtf8("[跳过]")) ||
+                             reportedUnknown ||
+                             line.contains(QString::fromUtf8("已停止")) ||
+                             line.contains(QString::fromUtf8("存在差异")) ||
+                             line.contains(QString::fromUtf8("不完全一致")) ||
+                             line.contains(QString::fromUtf8("日志较长")) ||
+                             line.contains("log was long", Qt::CaseInsensitive) ||
+                             line.contains('*') ||
+                             line.contains(QString::fromUtf8("部分 DNS"));
+    const bool section = (line.startsWith('[') && line.contains("/5]")) ||
+                         line == QString::fromUtf8("[高级信息]") ||
+                         line.startsWith(QString::fromUtf8("[高级统计]"));
+
+    if (failed) return LogToneFailure;
+    if (succeeded) return LogToneSuccess;
+    if (warning) return LogToneWarning;
+    if (section) return LogToneSection;
+    return LogToneDefault;
+}
+
+QColor colorForLogTone(LogTone tone) {
+    switch (tone) {
+        case LogToneSuccess: return QColor("#18794e");
+        case LogToneFailure: return QColor("#b42318");
+        case LogToneWarning: return QColor("#946200");
+        case LogToneSection: return QColor("#1769aa");
+        default: return QColor("#18202a");
+    }
+}
+
+class LogHighlighter : public QSyntaxHighlighter {
+public:
+    explicit LogHighlighter(QTextDocument* document)
+        : QSyntaxHighlighter(document) {}
+
+protected:
+    void highlightBlock(const QString& text) {
+        const LogTone tone = logToneForLine(text);
+        if (tone == LogToneDefault) return;
+
+        QTextCharFormat format;
+        format.setForeground(colorForLogTone(tone));
+        format.setFontWeight(QFont::DemiBold);
+        setFormat(0, text.size(), format);
+    }
 };
 
 void configureComboBox(QComboBox* comboBox) {
@@ -226,7 +323,8 @@ MainWindow::MainWindow(QWidget* parent)
       reachableCount_(0),
       unreachableCount_(0),
       unknownCount_(0),
-      process_(new QProcess(this)) {
+      process_(new QProcess(this)),
+      lastOutputWasBlank_(false) {
     buildInterface();
     const QString localAddress = QString::fromStdString(pingkk::primaryLocalAddress());
     currentIpValue_->setText(localAddress == QString::fromUtf8("未知") ? "—" : localAddress);
@@ -263,7 +361,7 @@ void MainWindow::buildInterface() {
     languageCombo_->setObjectName("languageCombo");
     languageCombo_->addItem(QString::fromUtf8("中文"));
     languageCombo_->addItem("English");
-    languageCombo_->setFixedWidth(102);
+    languageCombo_->setFixedWidth(110);
     configureComboBox(languageCombo_);
     installButton_ = new QPushButton;
     installButton_->setObjectName("quietButton");
@@ -290,8 +388,10 @@ void MainWindow::buildInterface() {
     protocolCombo_ = new FixedPopupComboBox;
     protocolCombo_->addItems(QStringList()
                              << "TCP" << "UDP" << "TCP + UDP" << "Ping"
-                             << QString::fromUtf8("路由追踪"));
-    protocolCombo_->setFixedWidth(160);
+                             << QString::fromUtf8("路由追踪")
+                             << QString::fromUtf8("一键网络体检")
+                             << QString::fromUtf8("DNS 对比诊断"));
+    protocolCombo_->setFixedWidth(192);
     configureComboBox(protocolCombo_);
     timeoutTitle_ = new QLabel;
     timeoutSpin_ = new UnitSpinBox("ms");
@@ -331,11 +431,14 @@ void MainWindow::buildInterface() {
     QHBoxLayout* outputHeader = new QHBoxLayout;
     outputTitle_ = new QLabel;
     outputTitle_->setObjectName("sectionTitle");
+    advancedCheckBox_ = new QCheckBox;
+    advancedCheckBox_->setObjectName("advancedCheckBox");
     exportButton_ = new QPushButton;
     exportButton_->setObjectName("textButton");
     clearButton_ = new QPushButton;
     clearButton_->setObjectName("textButton");
     outputHeader->addWidget(outputTitle_);
+    outputHeader->addWidget(advancedCheckBox_);
     outputHeader->addStretch();
     outputHeader->addWidget(exportButton_);
     outputHeader->addWidget(clearButton_);
@@ -345,6 +448,7 @@ void MainWindow::buildInterface() {
     outputEdit_->setReadOnly(true);
     outputEdit_->setObjectName("outputEdit");
     outputEdit_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    new LogHighlighter(outputEdit_->document());
 
     QLabel* projectLink = new QLabel(
         QString("v%2 · <a href=\"%1\">项目地址</a>")
@@ -370,20 +474,26 @@ void MainWindow::buildInterface() {
         "font-family: 'PingFang SC', 'Microsoft YaHei UI', sans-serif; "
         "font-size: 14px; }"
         "QLabel { background: transparent; }"
+        "QLabel:disabled { color: #8a939e; }"
         "QFrame#controlPanel { background: #f8f9fb; border: 1px solid #dfe3e8; border-radius: 12px; }"
         "QFrame#currentIpPanel { background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLabel#mutedLabel { color: #68717d; }"
         "QLabel#inputUnit { color: #68717d; background: transparent; font-size: 14px; }"
         "QLabel#addressLabel, QLabel#sectionTitle { font-weight: 600; color: #18202a; }"
+        "QCheckBox#advancedCheckBox { color: #394451; spacing: 7px; }"
+        "QCheckBox#advancedCheckBox:disabled { color: #9aa1aa; }"
         "QLineEdit, QSpinBox, QComboBox { min-height: 36px; padding: 0 6px; "
         "font-size: 15px; background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid #1769aa; }"
-        "QComboBox { padding-right: 36px; }"
+        "QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { "
+        "color: #8a939e; background: #eceff2; "
+        "border-color: #d7dce1; }"
+        "QComboBox { padding-right: 29px; }"
         "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; "
-        "width: 32px; border: 0; border-left: 1px solid #e1e5e9; background: transparent; }"
+        "width: 26px; border: 0; border-left: 1px solid #e1e5e9; background: transparent; }"
         "QComboBox::down-arrow { image: none; }"
-        "QComboBox#languageCombo { min-height: 32px; padding: 0 28px 0 8px; }"
-        "QComboBox#languageCombo::drop-down { width: 26px; }"
+        "QComboBox#languageCombo { min-height: 32px; padding: 0 25px 0 8px; }"
+        "QComboBox#languageCombo::drop-down { width: 24px; }"
         "QListView#comboPopup { background: #ffffff; border: 1px solid #cbd1d8; "
         "border-radius: 8px; padding: 5px; outline: 0; color: #18202a; }"
         "QListView#comboPopup::item { min-height: 38px; padding: 0 8px; border-radius: 5px; }"
@@ -447,13 +557,26 @@ void MainWindow::updateTexts() {
     protocolTitle_->setText(english_ ? "Function" : QString::fromUtf8("功能选择"));
     timeoutTitle_->setText(english_ ? "Timeout" : QString::fromUtf8("超时时间"));
     protocolCombo_->setItemText(4, english_ ? "Route trace" : QString::fromUtf8("路由追踪"));
-    singleButton_->setText(english_ ? "Test once" : QString::fromUtf8("单次测试"));
+    protocolCombo_->setItemText(5, english_ ? "Network checkup" : QString::fromUtf8("一键网络体检"));
+    protocolCombo_->setItemText(6, english_ ? "DNS comparison" : QString::fromUtf8("DNS 对比诊断"));
+    const int functionIndex = protocolCombo_->currentIndex();
+    singleButton_->setText(
+        functionIndex == 5
+            ? (english_ ? "Start checkup" : QString::fromUtf8("开始体检"))
+            : functionIndex == 6
+                  ? (english_ ? "Compare DNS" : QString::fromUtf8("开始对比"))
+                  : (english_ ? "Test once" : QString::fromUtf8("单次测试")));
     continuousButton_->setText(english_ ? "Continuous" : QString::fromUtf8("持续测试"));
     stopButton_->setText(english_ ? "Stop" : QString::fromUtf8("停止测试"));
     installButton_->setText(english_ ? "Install CLI" : QString::fromUtf8("安装命令行工具"));
     outputTitle_->setText(english_ ? "Output" : QString::fromUtf8("日志输出"));
+    advancedCheckBox_->setText(english_ ? "Advanced output" : QString::fromUtf8("高级输出"));
+    advancedCheckBox_->setToolTip(
+        english_ ? "Show packet size, loss, latency range, variation, and detailed statistics."
+                 : QString::fromUtf8("显示单包大小、丢包率、时延范围、波动和详细统计。"));
     exportButton_->setText(english_ ? "Copy report" : QString::fromUtf8("一键导出"));
     clearButton_->setText(english_ ? "Clear" : QString::fromUtf8("清空"));
+    updateProtocolFields(protocolCombo_->currentIndex());
 }
 
 QString MainWindow::commandPath() const {
@@ -482,8 +605,9 @@ void MainWindow::startContinuousTest() {
 
 void MainWindow::startTest(bool continuous) {
     if (process_->state() != QProcess::NotRunning) return;
+    const int functionIndex = protocolCombo_->currentIndex();
     const QString target = targetEdit_->text().trimmed();
-    if (target.isEmpty()) {
+    if (target.isEmpty() && functionIndex != 5) {
         showInputError(english_ ? "Enter a target address." : QString::fromUtf8("请输入目标地址。"));
         return;
     }
@@ -503,18 +627,26 @@ void MainWindow::startTest(bool continuous) {
     }
 
     QStringList arguments;
-    if (protocolCombo_->currentIndex() == 4) {
+    if (functionIndex == 5) {
+        arguments << "--checkup";
+    } else if (functionIndex == 6) {
+        arguments << "--dns" << target;
+    } else if (functionIndex == 4) {
         arguments << "-r" << target;
     } else {
         if (continuous) arguments << "-t";
         arguments << target;
     }
-    if (protocolCombo_->currentIndex() < 3) {
+    if (functionIndex < 3) {
         portEdit_->setText(ports);
         arguments << ports << protocolArgument();
     }
     arguments << "--timeout" << QString::number(timeoutSpin_->value());
-    outputEdit_->appendPlainText(english_ ? "Starting test..." : QString::fromUtf8("开始测试……"));
+    if (advancedCheckBox_->isChecked()) arguments << "--advanced";
+    if (!outputEdit_->document()->isEmpty() && !lastOutputWasBlank_) {
+        appendOutputLine(QString());
+    }
+    appendOutputLine(english_ ? "Starting test..." : QString::fromUtf8("开始测试……"));
     stopRequested_ = false;
     reachableCount_ = 0;
     unreachableCount_ = 0;
@@ -524,9 +656,8 @@ void MainWindow::startTest(bool continuous) {
     process_->start(executable, arguments);
     if (!process_->waitForStarted(3000)) {
         setRunning(false);
-        outputEdit_->appendPlainText(
-            english_ ? "The test process could not be started."
-                     : QString::fromUtf8("无法启动测试进程，请重新打开应用后再试。"));
+        appendOutputLine(english_ ? "The test process could not be started."
+                                  : QString::fromUtf8("无法启动测试进程，请重新打开应用后再试。"));
     }
 }
 
@@ -538,40 +669,70 @@ void MainWindow::stopTest() {
 }
 
 void MainWindow::readProcessOutput() {
-    const QString text = QString::fromUtf8(process_->readAllStandardOutput());
+    QString text = QString::fromUtf8(process_->readAllStandardOutput());
     if (text.isEmpty()) return;
-    outputEdit_->moveCursor(QTextCursor::End);
-    outputEdit_->insertPlainText(text);
-    outputEdit_->moveCursor(QTextCursor::End);
-
+    text.replace("\r\n", "\n");
+    text.replace('\r', '\n');
     pendingOutputLine_.append(text);
-    const QString marker = QString::fromUtf8("当前 IP：");
     int lineEnd = -1;
     while ((lineEnd = pendingOutputLine_.indexOf('\n')) >= 0) {
-        const QString line = pendingOutputLine_.left(lineEnd).trimmed();
+        const QString line = pendingOutputLine_.left(lineEnd);
         pendingOutputLine_.remove(0, lineEnd + 1);
-        if (line.startsWith(marker)) {
-            const QString address = line.mid(marker.size()).trimmed();
-            if (!address.isEmpty() && address != QString::fromUtf8("未知")) {
-                currentIpValue_->setText(address);
-            }
-        } else if (line.contains(QString::fromUtf8("端口测试"))) {
-            if (line.contains(QString::fromUtf8("状态未知"))) {
-                ++unknownCount_;
-            } else if (line.contains(QString::fromUtf8("协议连通"))) {
-                ++reachableCount_;
-            } else if (line.contains(QString::fromUtf8("协议不通"))) {
-                ++unreachableCount_;
-            }
-        } else if (line.startsWith(QString::fromUtf8("来自 "))) {
+        handleOutputLine(line);
+    }
+}
+
+void MainWindow::appendOutputLine(const QString& text) {
+    QString line = text;
+    while (line.endsWith(' ') || line.endsWith('\t')) line.chop(1);
+    const bool blank = line.trimmed().isEmpty();
+    if (blank && (outputEdit_->document()->isEmpty() || lastOutputWasBlank_)) return;
+
+    QTextCursor cursor(outputEdit_->document());
+    cursor.movePosition(QTextCursor::End);
+    if (!outputEdit_->document()->isEmpty()) cursor.insertBlock();
+
+    QTextBlockFormat blockFormat;
+    blockFormat.setLineHeight(125, QTextBlockFormat::ProportionalHeight);
+    blockFormat.setBottomMargin(blank ? 2 : 1);
+    cursor.setBlockFormat(blockFormat);
+    if (!blank) cursor.insertText(line);
+
+    lastOutputWasBlank_ = blank;
+    outputEdit_->setTextCursor(cursor);
+    outputEdit_->ensureCursorVisible();
+}
+
+void MainWindow::handleOutputLine(const QString& rawLine) {
+    appendOutputLine(rawLine);
+    const QString line = rawLine.trimmed();
+    const QString marker = QString::fromUtf8("当前 IP：");
+    if (line.startsWith(marker)) {
+        const QString address = line.mid(marker.size()).trimmed();
+        if (!address.isEmpty() && address != QString::fromUtf8("未知")) {
+            currentIpValue_->setText(address);
+        }
+    } else if (line.contains(QString::fromUtf8("端口测试"))) {
+        if (line.contains(QString::fromUtf8("状态未知"))) {
+            ++unknownCount_;
+        } else if (line.contains(QString::fromUtf8("协议连通"))) {
             ++reachableCount_;
-        } else if (line == QString::fromUtf8("请求超时")) {
+        } else if (line.contains(QString::fromUtf8("协议不通"))) {
             ++unreachableCount_;
         }
+    } else if (line.startsWith(QString::fromUtf8("来自 "))) {
+        ++reachableCount_;
+    } else if (line == QString::fromUtf8("请求超时")) {
+        ++unreachableCount_;
     }
 }
 
 void MainWindow::processFinished(int exitCode) {
+    readProcessOutput();
+    if (!pendingOutputLine_.isEmpty()) {
+        handleOutputLine(pendingOutputLine_);
+        pendingOutputLine_.clear();
+    }
     setRunning(false);
     QString summary;
     if (stopRequested_) {
@@ -579,6 +740,9 @@ void MainWindow::processFinished(int exitCode) {
     } else if (exitCode >= 2) {
         summary = english_ ? "Test ended with an error."
                            : QString::fromUtf8("测试异常结束，请检查上方信息。");
+    } else if (protocolCombo_->currentIndex() >= 5) {
+        // 一键体检和 DNS 对比已经由命令行输出完整结论，不重复追加通用总结。
+        summary.clear();
     } else {
         const int total = reachableCount_ + unreachableCount_ + unknownCount_;
         if (total > 0 && reachableCount_ == total) {
@@ -604,9 +768,10 @@ void MainWindow::processFinished(int exitCode) {
             summary = english_ ? "Test complete." : QString::fromUtf8("测试完成。");
         }
     }
-    outputEdit_->moveCursor(QTextCursor::End);
-    outputEdit_->insertPlainText(summary + "\n\n");
-    outputEdit_->moveCursor(QTextCursor::End);
+    if (!summary.isEmpty()) {
+        appendOutputLine(summary);
+        appendOutputLine(QString());
+    }
     stopRequested_ = false;
 }
 
@@ -618,10 +783,28 @@ void MainWindow::changeLanguage(int index) {
 void MainWindow::updateProtocolFields(int index) {
     const bool needsPort = index < 3;
     const bool route = index == 4;
+    const bool checkup = index == 5;
+    const bool dnsComparison = index == 6;
     const bool idle = singleButton_->isEnabled();
     portTitle_->setEnabled(needsPort);
     portEdit_->setEnabled(needsPort && idle);
-    continuousButton_->setEnabled(!route && idle);
+    targetTitle_->setEnabled(!checkup);
+    targetEdit_->setEnabled(!checkup && idle);
+    targetEdit_->setPlaceholderText(
+        dnsComparison
+            ? (english_ ? "Domain name, for example example.com"
+                        : QString::fromUtf8("输入域名，例如 example.com"))
+            : checkup
+                  ? (english_ ? "No target required" : QString::fromUtf8("无需输入目标地址"))
+                  : (english_ ? "IP, domain, or URL" : QString::fromUtf8("IP、域名或完整网址")));
+    continuousButton_->setEnabled(!route && !checkup && !dnsComparison && idle);
+    continuousButton_->setVisible(idle && !checkup && !dnsComparison);
+    singleButton_->setText(
+        checkup
+            ? (english_ ? "Start checkup" : QString::fromUtf8("开始体检"))
+            : dnsComparison
+                  ? (english_ ? "Compare DNS" : QString::fromUtf8("开始对比"))
+                  : (english_ ? "Test once" : QString::fromUtf8("单次测试")));
 }
 
 void MainWindow::setRunning(bool running) {
@@ -629,6 +812,7 @@ void MainWindow::setRunning(bool running) {
     portEdit_->setEnabled(!running);
     timeoutSpin_->setEnabled(!running);
     protocolCombo_->setEnabled(!running);
+    advancedCheckBox_->setEnabled(!running);
     singleButton_->setEnabled(!running);
     continuousButton_->setVisible(!running);
     stopButton_->setVisible(running);
@@ -749,7 +933,6 @@ void MainWindow::copyReportImage() {
         lines = lines.mid(lines.size() - 500);
         lines.prepend(english_ ? "[The log was long; only the latest 500 lines are included.]"
                                : QString::fromUtf8("[日志较长，仅保留最近 500 行]"));
-        output = lines.join('\n');
     }
 
     const int imageWidth = 1200;
@@ -761,12 +944,27 @@ void MainWindow::copyReportImage() {
 
     QFont bodyFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     bodyFont.setPixelSize(19);
-    QFontMetrics bodyMetrics(bodyFont);
-    const QRect bodyBounds = bodyMetrics.boundingRect(
-        QRect(0, 0, contentWidth - logPadding * 2, 200000),
-        Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
-        output);
-    const int logHeight = qMax(210, bodyBounds.height() + logPadding * 2);
+    const int logTextWidth = contentWidth - logPadding * 2;
+    const int logLineGap = 6;
+    int logTextHeight = 0;
+    for (int index = 0; index < lines.size(); ++index) {
+        const LogTone tone = logToneForLine(lines.at(index));
+        QFont lineFont = bodyFont;
+        if (tone != LogToneDefault) lineFont.setWeight(QFont::DemiBold);
+        const QFontMetrics metrics(lineFont);
+        int lineHeight = metrics.lineSpacing();
+        if (!lines.at(index).trimmed().isEmpty()) {
+            lineHeight = qMax(
+                lineHeight,
+                metrics.boundingRect(
+                    QRect(0, 0, logTextWidth, 200000),
+                    Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                    lines.at(index)).height());
+        }
+        logTextHeight += lineHeight;
+        if (index + 1 < lines.size()) logTextHeight += logLineGap;
+    }
+    const int logHeight = qMax(210, logTextHeight + logPadding * 2);
     const int imageHeight = logTop + logHeight + 64;
 
     QImage report(imageWidth, imageHeight, QImage::Format_ARGB32_Premultiplied);
@@ -833,14 +1031,32 @@ void MainWindow::copyReportImage() {
     painter.setPen(QPen(QColor("#dfe3e8"), 1));
     painter.setBrush(QColor("#fbfcfd"));
     painter.drawRoundedRect(QRect(contentLeft, logTop, contentWidth, logHeight), 12, 12);
-    painter.setFont(bodyFont);
-    painter.setPen(QColor("#18202a"));
-    painter.drawText(QRect(contentLeft + logPadding,
-                           logTop + logPadding,
-                           contentWidth - logPadding * 2,
-                           logHeight - logPadding * 2),
-                     Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
-                     output);
+    int lineTop = logTop + logPadding;
+    for (int index = 0; index < lines.size(); ++index) {
+        const QString& line = lines.at(index);
+        const LogTone tone = logToneForLine(line);
+        QFont lineFont = bodyFont;
+        if (tone != LogToneDefault) lineFont.setWeight(QFont::DemiBold);
+        const QFontMetrics metrics(lineFont);
+        int lineHeight = metrics.lineSpacing();
+        if (!line.trimmed().isEmpty()) {
+            lineHeight = qMax(
+                lineHeight,
+                metrics.boundingRect(
+                    QRect(0, 0, logTextWidth, 200000),
+                    Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                    line).height());
+        }
+        painter.setFont(lineFont);
+        painter.setPen(colorForLogTone(tone));
+        painter.drawText(QRect(contentLeft + logPadding,
+                               lineTop,
+                               logTextWidth,
+                               lineHeight),
+                         Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                         line);
+        lineTop += lineHeight + logLineGap;
+    }
     painter.end();
 
     QApplication::clipboard()->setImage(report);
@@ -862,5 +1078,7 @@ void MainWindow::clearOutput() {
             english_ ? "Clear" : QString::fromUtf8("清空"),
             english_ ? "Cancel" : QString::fromUtf8("取消"))) {
         outputEdit_->clear();
+        pendingOutputLine_.clear();
+        lastOutputWasBlank_ = false;
     }
 }
