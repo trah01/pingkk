@@ -573,15 +573,14 @@ void MainWindow::readProcessOutput() {
 
 void MainWindow::processFinished(int exitCode) {
     setRunning(false);
+    QString summary;
     if (stopRequested_) {
-        outputEdit_->appendPlainText(english_ ? "Test stopped."
-                                              : QString::fromUtf8("测试已停止。"));
+        summary = english_ ? "Test stopped." : QString::fromUtf8("测试已停止。");
     } else if (exitCode >= 2) {
-        outputEdit_->appendPlainText(english_ ? "Test ended with an error."
-                                              : QString::fromUtf8("测试异常结束，请检查上方信息。"));
+        summary = english_ ? "Test ended with an error."
+                           : QString::fromUtf8("测试异常结束，请检查上方信息。");
     } else {
         const int total = reachableCount_ + unreachableCount_ + unknownCount_;
-        QString summary;
         if (total > 0 && reachableCount_ == total) {
             summary = english_ ? QString("Test complete: all %1 checks passed.").arg(total)
                                : QString::fromUtf8("测试完成：%1 项全部连通。").arg(total);
@@ -604,9 +603,10 @@ void MainWindow::processFinished(int exitCode) {
         } else {
             summary = english_ ? "Test complete." : QString::fromUtf8("测试完成。");
         }
-        outputEdit_->appendPlainText(summary);
     }
-    outputEdit_->appendPlainText(QString());
+    outputEdit_->moveCursor(QTextCursor::End);
+    outputEdit_->insertPlainText(summary + "\n\n");
+    outputEdit_->moveCursor(QTextCursor::End);
     stopRequested_ = false;
 }
 

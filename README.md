@@ -11,6 +11,12 @@
 - 持续测试与自定义超时时间
 - 一键导出测试报告
 
+## 界面预览
+
+![pingkk 命令行示例](assets/命令行示例.png)
+
+![pingkk 图形界面示例](assets/图形界面示例.png)
+
 ## 下载
 
 前往 [Releases](https://github.com/trah01/pingkk/releases) 下载适合你系统的版本。
