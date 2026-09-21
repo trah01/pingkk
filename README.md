@@ -17,6 +17,10 @@
 
 ![pingkk 图形界面示例](assets/图形界面示例.png)
 
+图形界面支持将当前测试结果导出为报告图片，方便保存或发送给他人。
+
+![pingkk 测试报告示例](assets/测试报告示例.png)
+
 ## 下载
 
 前往 [Releases](https://github.com/trah01/pingkk/releases) 下载适合你系统的版本。
