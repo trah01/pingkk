@@ -24,8 +24,8 @@
 | Windows | x64（Windows 10 1809 及以上） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-` |
 | Windows | x64（旧系统兼容版） | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-x64-legacy-` |
 | Windows | ARM64 | `portable.exe`（单文件） | `setup.exe` | `cli.zip` | `pingkk-windows-arm64-` |
-| macOS | Intel（x86_64） | `gui.zip`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-intel-` |
-| macOS | Apple Silicon（ARM64） | `gui.zip`（含 `.app`） | — | `cli.tar.gz` | `pingkk-macos-arm64-` |
+| macOS | Intel（x86_64） | `gui.zip`（含 `.app`） | — | `cli.zip` | `pingkk-macos-intel-` |
+| macOS | Apple Silicon（ARM64） | `gui.zip`（含 `.app`） | — | `cli.zip` | `pingkk-macos-arm64-` |
 | Linux | x86（32 位） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x86-` |
 | Linux | x64（含麒麟 / 统信 x64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-x64-` |
 | Linux | ARM64（含麒麟 / 统信 ARM64） | `portable.tar.xz` | `installer.deb` | `cli.tar.gz` | `pingkk-linux-arm64-` |

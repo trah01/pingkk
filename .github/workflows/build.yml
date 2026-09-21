@@ -292,7 +292,8 @@ jobs:
             > dist-cli/使用说明.txt
           (cd dist-gui && ditto -c -k --sequesterRsrc . \
             "../${{ matrix.artifact }}-gui.zip")
-          tar -C dist-cli -czf "${{ matrix.artifact }}-cli.tar.gz" .
+          (cd dist-cli && ditto -c -k --sequesterRsrc . \
+            "../${{ matrix.artifact }}-cli.zip")
 
       - name: 上传 macOS 产物
         uses: actions/upload-artifact@v4
@@ -300,7 +301,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             ${{ matrix.artifact }}-gui.zip
-            ${{ matrix.artifact }}-cli.tar.gz
+            ${{ matrix.artifact }}-cli.zip
           if-no-files-found: error
           retention-days: 14
 

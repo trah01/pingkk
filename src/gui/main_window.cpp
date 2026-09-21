@@ -156,13 +156,13 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::buildInterface() {
-    setMinimumSize(760, 560);
-    resize(900, 640);
+    setMinimumSize(700, 480);
+    resize(800, 550);
 
     QWidget* central = new QWidget(this);
     QVBoxLayout* root = new QVBoxLayout(central);
-    root->setContentsMargins(28, 24, 28, 24);
-    root->setSpacing(20);
+    root->setContentsMargins(22, 18, 22, 18);
+    root->setSpacing(14);
 
     QHBoxLayout* topBar = new QHBoxLayout;
     currentIpTitle_ = new QLabel;
@@ -171,7 +171,7 @@ void MainWindow::buildInterface() {
     currentIpValue_->setObjectName("addressLabel");
     QFrame* currentIpPanel = new QFrame;
     currentIpPanel->setObjectName("currentIpPanel");
-    currentIpPanel->setFixedHeight(42);
+    currentIpPanel->setFixedHeight(38);
     QHBoxLayout* currentIpLayout = new QHBoxLayout(currentIpPanel);
     currentIpLayout->setContentsMargins(12, 0, 12, 0);
     currentIpLayout->setSpacing(10);
@@ -194,9 +194,9 @@ void MainWindow::buildInterface() {
     QFrame* controlPanel = new QFrame;
     controlPanel->setObjectName("controlPanel");
     QGridLayout* controls = new QGridLayout(controlPanel);
-    controls->setContentsMargins(22, 20, 22, 20);
-    controls->setHorizontalSpacing(14);
-    controls->setVerticalSpacing(15);
+    controls->setContentsMargins(18, 16, 18, 16);
+    controls->setHorizontalSpacing(12);
+    controls->setVerticalSpacing(12);
 
     targetTitle_ = new QLabel;
     targetEdit_ = new QLineEdit;
@@ -204,20 +204,20 @@ void MainWindow::buildInterface() {
     portTitle_ = new QLabel;
     portEdit_ = new QLineEdit("80");
     portEdit_->setClearButtonEnabled(true);
-    portEdit_->setFixedWidth(190);
+    portEdit_->setFixedWidth(170);
     protocolTitle_ = new QLabel;
     protocolCombo_ = new FixedPopupComboBox;
     protocolCombo_->addItems(QStringList()
                              << "TCP" << "UDP" << "TCP + UDP" << "Ping"
                              << QString::fromUtf8("路由追踪"));
-    protocolCombo_->setFixedWidth(180);
+    protocolCombo_->setFixedWidth(160);
     configureComboBox(protocolCombo_);
     timeoutTitle_ = new QLabel;
     timeoutSpin_ = new QSpinBox;
     timeoutSpin_->setRange(100, 60000);
     timeoutSpin_->setValue(1000);
     timeoutSpin_->setSuffix(" ms");
-    timeoutSpin_->setFixedWidth(135);
+    timeoutSpin_->setFixedWidth(125);
     timeoutSpin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
     singleButton_ = new QPushButton;
     singleButton_->setObjectName("primaryButton");
@@ -227,9 +227,7 @@ void MainWindow::buildInterface() {
     stopButton_->setVisible(false);
 
     controls->addWidget(targetTitle_, 0, 0);
-    controls->addWidget(targetEdit_, 0, 1, 1, 3);
-    controls->addWidget(portTitle_, 0, 4);
-    controls->addWidget(portEdit_, 0, 5);
+    controls->addWidget(targetEdit_, 0, 1, 1, 5);
     controls->addWidget(protocolTitle_, 1, 0);
     controls->addWidget(protocolCombo_, 1, 1);
     controls->addWidget(timeoutTitle_, 1, 2);
@@ -237,6 +235,9 @@ void MainWindow::buildInterface() {
     controls->addWidget(singleButton_, 1, 4);
     controls->addWidget(continuousButton_, 1, 5);
     controls->addWidget(stopButton_, 1, 5);
+    controls->addWidget(portTitle_, 2, 0);
+    controls->addWidget(portEdit_, 2, 1);
+    controls->setColumnStretch(1, 1);
     root->addWidget(controlPanel);
 
     QHBoxLayout* outputHeader = new QHBoxLayout;
@@ -264,7 +265,7 @@ void MainWindow::buildInterface() {
             .arg(PINGKK_VERSION));
     projectLink->setOpenExternalLinks(true);
     projectLink->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    projectLink->setStyleSheet("font-size: 14px; color: #68717d;");
+    projectLink->setStyleSheet("font-size: 13px; color: #68717d;");
     QHBoxLayout* footerBar = new QHBoxLayout;
     footerBar->setContentsMargins(0, 0, 0, 0);
     footerBar->addWidget(projectLink);
@@ -275,13 +276,13 @@ void MainWindow::buildInterface() {
     setStyleSheet(
         "QMainWindow, QWidget { background: #ffffff; color: #18202a; "
         "font-family: 'PingFang SC', 'Microsoft YaHei UI', sans-serif; "
-        "font-size: 16px; }"
+        "font-size: 14px; }"
         "QLabel { background: transparent; }"
         "QFrame#controlPanel { background: #f8f9fb; border: 1px solid #dfe3e8; border-radius: 12px; }"
         "QFrame#currentIpPanel { background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLabel#mutedLabel { color: #68717d; }"
         "QLabel#addressLabel, QLabel#sectionTitle { font-weight: 600; color: #18202a; }"
-        "QLineEdit, QSpinBox, QComboBox { min-height: 40px; padding: 0 11px; "
+        "QLineEdit, QSpinBox, QComboBox { min-height: 36px; padding: 0 10px; "
         "background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid #1769aa; }"
         "QComboBox { padding-right: 42px; }"
@@ -295,7 +296,7 @@ void MainWindow::buildInterface() {
         "QListView#comboPopup::item { min-height: 38px; padding: 0 10px; border-radius: 5px; }"
         "QListView#comboPopup::item:hover { background: #f1f5f8; }"
         "QListView#comboPopup::item:selected { background: #e7f1f8; color: #124d78; }"
-        "QPushButton { min-height: 40px; padding: 0 18px; border: 1px solid #cbd1d8; "
+        "QPushButton { min-height: 36px; padding: 0 14px; border: 1px solid #cbd1d8; "
         "border-radius: 7px; background: #ffffff; }"
         "QPushButton:hover { background: #f1f3f5; }"
         "QPushButton:pressed { background: #e6e9ed; }"
@@ -306,8 +307,8 @@ void MainWindow::buildInterface() {
         "QPushButton#quietButton { color: #394451; background: transparent; }"
         "QPushButton#textButton { border: 0; color: #1769aa; padding: 0 8px; }"
         "QPlainTextEdit#outputEdit { background: #fbfcfd; border: 1px solid #dfe3e8; "
-        "border-radius: 10px; padding: 16px; "
-        "font-size: 15px; line-height: 1.5; selection-background-color: #cfe5f7; }"
+        "border-radius: 10px; padding: 12px; "
+        "font-size: 14px; line-height: 1.5; selection-background-color: #cfe5f7; }"
         "QPlainTextEdit#outputEdit QScrollBar:vertical { border: 0; background: #f1f3f5; "
         "width: 10px; margin: 7px 2px 7px 0; border-radius: 5px; }"
         "QPlainTextEdit#outputEdit QScrollBar::handle:vertical { background: #bcc4cd; "
