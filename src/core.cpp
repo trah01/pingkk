@@ -93,6 +93,29 @@ bool connectInProgress(int error) {
 #endif
 }
 
+std::string dnsErrorText(int error) {
+    if (error == EAI_AGAIN) {
+        return "域名解析暂时失败，请稍后重试";
+    }
+    if (error == EAI_NONAME) {
+        return "未找到该域名，请检查地址是否正确";
+    }
+#ifdef EAI_NODATA
+    if (error == EAI_NODATA) {
+        return "该域名没有可用的 IP 地址";
+    }
+#endif
+    if (error == EAI_FAIL) {
+        return "域名解析服务器返回错误";
+    }
+#ifdef EAI_SYSTEM
+    if (error == EAI_SYSTEM) {
+        return "域名解析失败，请检查网络或 DNS 设置";
+    }
+#endif
+    return "域名解析失败，请检查地址和网络设置";
+}
+
 std::string errorText(int error) {
 #ifdef _WIN32
     std::ostringstream stream;
@@ -229,11 +252,7 @@ bool resolveTarget(const std::string& input,
     addrinfo* results = NULL;
     const int status = getaddrinfo(target.host.c_str(), NULL, &hints, &results);
     if (status != 0 || results == NULL) {
-#ifdef _WIN32
-        error = "无法解析目标地址";
-#else
-        error = gai_strerror(status);
-#endif
+        error = dnsErrorText(status);
         return false;
     }
 

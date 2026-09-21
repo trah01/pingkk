@@ -28,6 +28,13 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Keep all user-facing Chinese literals encoded as UTF-8 on every build host.
+if(MSVC)
+    add_compile_options(/utf-8)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+
 add_library(pingkk_core
     src/core.cpp
     src/diagnostics.cpp
@@ -120,11 +127,10 @@ if(PINGKK_BUILD_GUI)
         )
         add_dependencies(pingkk_gui pingkk)
         if(APPLE)
-            add_custom_target(pingkk_bundle_cli ALL
+            add_custom_command(TARGET pingkk_gui POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     $<TARGET_FILE:pingkk>
                     $<TARGET_FILE_DIR:pingkk_gui>/pingkk-cli
-                DEPENDS pingkk pingkk_gui
                 COMMENT "将命令行工具放入 macOS 应用包"
             )
         endif()

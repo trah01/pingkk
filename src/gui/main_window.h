@@ -41,6 +41,9 @@ private:
 
     bool english_;
     bool stopRequested_;
+    int reachableCount_;
+    int unreachableCount_;
+    int unknownCount_;
     QLabel* currentIpTitle_;
     QLabel* currentIpValue_;
     QLabel* targetTitle_;

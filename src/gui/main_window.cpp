@@ -7,6 +7,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -20,7 +21,6 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QImage>
-#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPainter>
 #include <QProcess>
@@ -119,6 +119,63 @@ bool normalizePorts(const QString& input, QString& normalized) {
     return true;
 }
 
+void showTextMessage(QWidget* parent,
+                     const QString& title,
+                     const QString& message) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.setModal(true);
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+    layout->setSizeConstraint(QLayout::SetFixedSize);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(12);
+    QLabel* text = new QLabel(message);
+    text->setTextFormat(Qt::PlainText);
+    text->setWordWrap(true);
+    text->setMinimumWidth(280);
+    text->setMaximumWidth(460);
+    layout->addWidget(text);
+    QHBoxLayout* buttons = new QHBoxLayout;
+    buttons->addStretch();
+    QPushButton* close = new QPushButton("OK");
+    close->setDefault(true);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+    QObject::connect(close, SIGNAL(clicked()), &dialog, SLOT(accept()));
+    dialog.exec();
+}
+
+bool confirmTextMessage(QWidget* parent,
+                        const QString& title,
+                        const QString& message,
+                        const QString& acceptText,
+                        const QString& rejectText) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.setModal(true);
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+    layout->setSizeConstraint(QLayout::SetFixedSize);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(12);
+    QLabel* text = new QLabel(message);
+    text->setTextFormat(Qt::PlainText);
+    text->setWordWrap(true);
+    text->setMinimumWidth(280);
+    text->setMaximumWidth(460);
+    layout->addWidget(text);
+    QHBoxLayout* buttons = new QHBoxLayout;
+    buttons->addStretch();
+    QPushButton* accept = new QPushButton(acceptText);
+    QPushButton* reject = new QPushButton(rejectText);
+    reject->setDefault(true);
+    buttons->addWidget(accept);
+    buttons->addWidget(reject);
+    layout->addLayout(buttons);
+    QObject::connect(accept, SIGNAL(clicked()), &dialog, SLOT(accept()));
+    QObject::connect(reject, SIGNAL(clicked()), &dialog, SLOT(reject()));
+    return dialog.exec() == QDialog::Accepted;
+}
+
 #if !defined(Q_OS_MACOS) && !defined(Q_OS_MAC)
 bool copyExecutable(const QString& source,
                     const QString& destination,
@@ -166,6 +223,9 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       english_(false),
       stopRequested_(false),
+      reachableCount_(0),
+      unreachableCount_(0),
+      unknownCount_(0),
       process_(new QProcess(this)) {
     buildInterface();
     const QString localAddress = QString::fromStdString(pingkk::primaryLocalAddress());
@@ -178,7 +238,7 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::buildInterface() {
-    setMinimumSize(700, 480);
+    setMinimumSize(800, 480);
     resize(800, 550);
 
     QWidget* central = new QWidget(this);
@@ -254,9 +314,13 @@ void MainWindow::buildInterface() {
     controls->addWidget(protocolCombo_, 1, 1);
     controls->addWidget(timeoutTitle_, 1, 2);
     controls->addWidget(timeoutSpin_, 1, 3);
-    controls->addWidget(singleButton_, 1, 4);
-    controls->addWidget(continuousButton_, 1, 5);
-    controls->addWidget(stopButton_, 1, 5);
+    QHBoxLayout* testButtons = new QHBoxLayout;
+    testButtons->setContentsMargins(0, 0, 0, 0);
+    testButtons->setSpacing(12);
+    testButtons->addWidget(singleButton_, 1);
+    testButtons->addWidget(continuousButton_, 1);
+    testButtons->addWidget(stopButton_, 1);
+    controls->addLayout(testButtons, 1, 4, 1, 2);
     QVBoxLayout* inputArea = new QVBoxLayout;
     inputArea->setContentsMargins(0, 0, 0, 0);
     inputArea->setSpacing(8);
@@ -452,6 +516,9 @@ void MainWindow::startTest(bool continuous) {
     arguments << "--timeout" << QString::number(timeoutSpin_->value());
     outputEdit_->appendPlainText(english_ ? "Starting test..." : QString::fromUtf8("开始测试……"));
     stopRequested_ = false;
+    reachableCount_ = 0;
+    unreachableCount_ = 0;
+    unknownCount_ = 0;
     pendingOutputLine_.clear();
     setRunning(true);
     process_->start(executable, arguments);
@@ -483,21 +550,63 @@ void MainWindow::readProcessOutput() {
     while ((lineEnd = pendingOutputLine_.indexOf('\n')) >= 0) {
         const QString line = pendingOutputLine_.left(lineEnd).trimmed();
         pendingOutputLine_.remove(0, lineEnd + 1);
-        if (!line.startsWith(marker)) continue;
-
-        const QString address = line.mid(marker.size()).trimmed();
-        if (!address.isEmpty() && address != QString::fromUtf8("未知")) {
-            currentIpValue_->setText(address);
+        if (line.startsWith(marker)) {
+            const QString address = line.mid(marker.size()).trimmed();
+            if (!address.isEmpty() && address != QString::fromUtf8("未知")) {
+                currentIpValue_->setText(address);
+            }
+        } else if (line.contains(QString::fromUtf8("端口测试"))) {
+            if (line.contains(QString::fromUtf8("状态未知"))) {
+                ++unknownCount_;
+            } else if (line.contains(QString::fromUtf8("协议连通"))) {
+                ++reachableCount_;
+            } else if (line.contains(QString::fromUtf8("协议不通"))) {
+                ++unreachableCount_;
+            }
+        } else if (line.startsWith(QString::fromUtf8("来自 "))) {
+            ++reachableCount_;
+        } else if (line == QString::fromUtf8("请求超时")) {
+            ++unreachableCount_;
         }
     }
 }
 
 void MainWindow::processFinished(int exitCode) {
     setRunning(false);
-    if (!stopRequested_ && exitCode >= 2) {
+    if (stopRequested_) {
+        outputEdit_->appendPlainText(english_ ? "Test stopped."
+                                              : QString::fromUtf8("测试已停止。"));
+    } else if (exitCode >= 2) {
         outputEdit_->appendPlainText(english_ ? "Test ended with an error."
                                               : QString::fromUtf8("测试异常结束，请检查上方信息。"));
+    } else {
+        const int total = reachableCount_ + unreachableCount_ + unknownCount_;
+        QString summary;
+        if (total > 0 && reachableCount_ == total) {
+            summary = english_ ? QString("Test complete: all %1 checks passed.").arg(total)
+                               : QString::fromUtf8("测试完成：%1 项全部连通。").arg(total);
+        } else if (total > 0) {
+            QStringList results;
+            if (reachableCount_ > 0) {
+                results << (english_ ? QString("%1 passed").arg(reachableCount_)
+                                     : QString::fromUtf8("%1 项连通").arg(reachableCount_));
+            }
+            if (unreachableCount_ > 0) {
+                results << (english_ ? QString("%1 failed").arg(unreachableCount_)
+                                     : QString::fromUtf8("%1 项不通").arg(unreachableCount_));
+            }
+            if (unknownCount_ > 0) {
+                results << (english_ ? QString("%1 unknown").arg(unknownCount_)
+                                     : QString::fromUtf8("%1 项未知").arg(unknownCount_));
+            }
+            summary = english_ ? "Test complete: " + results.join(", ") + "."
+                               : QString::fromUtf8("测试完成：") + results.join(QString::fromUtf8("，")) + QString::fromUtf8("。");
+        } else {
+            summary = english_ ? "Test complete." : QString::fromUtf8("测试完成。");
+        }
+        outputEdit_->appendPlainText(summary);
     }
+    outputEdit_->appendPlainText(QString());
     stopRequested_ = false;
 }
 
@@ -527,9 +636,9 @@ void MainWindow::setRunning(bool running) {
 }
 
 void MainWindow::showInputError(const QString& message) {
-    QMessageBox::warning(this,
-                         english_ ? "Cannot start" : QString::fromUtf8("无法开始测试"),
-                         message);
+    showTextMessage(this,
+                    english_ ? "Cannot start" : QString::fromUtf8("无法开始测试"),
+                    message);
 }
 
 void MainWindow::installCommandLineTool() {
@@ -577,7 +686,7 @@ void MainWindow::installCommandLineTool() {
                             3000,
                             &result);
     }
-    QMessageBox::information(
+    showTextMessage(
         this,
         english_ ? "Installed" : QString::fromUtf8("安装完成"),
         english_ ? "The pingkk command was installed. Open a new terminal to use it."
@@ -596,7 +705,7 @@ void MainWindow::installCommandLineTool() {
                                 : QString::fromUtf8("安装已取消或失败。"));
         return;
     }
-    QMessageBox::information(
+    showTextMessage(
         this,
         english_ ? "Installed" : QString::fromUtf8("安装完成"),
         english_ ? "The pingkk command was installed in /usr/local/bin."
@@ -616,7 +725,7 @@ void MainWindow::installCommandLineTool() {
         showInputError(english_ ? "The command-line tool could not be installed." : error);
         return;
     }
-    QMessageBox::information(
+    showTextMessage(
         this,
         english_ ? "Installed" : QString::fromUtf8("安装完成"),
         english_ ? "The pingkk command was installed in ~/.local/bin."
@@ -627,7 +736,7 @@ void MainWindow::installCommandLineTool() {
 void MainWindow::copyReportImage() {
     QString output = outputEdit_->toPlainText().trimmed();
     if (output.isEmpty()) {
-        QMessageBox::information(
+        showTextMessage(
             this,
             english_ ? "Nothing to export" : QString::fromUtf8("暂无测试结果"),
             english_ ? "Run a test before exporting the report."
@@ -735,28 +844,23 @@ void MainWindow::copyReportImage() {
     painter.end();
 
     QApplication::clipboard()->setImage(report);
-    QMessageBox messageBox(QMessageBox::NoIcon,
-                           english_ ? "Report copied" : QString::fromUtf8("导出完成"),
-                           english_ ? "The report image is in the clipboard and ready to paste."
-                                    : QString::fromUtf8("报告图片已复制到剪切板，可以直接粘贴发送。"),
-                           QMessageBox::Ok,
-                           this);
-    messageBox.exec();
+    showTextMessage(
+        this,
+        english_ ? "Report copied" : QString::fromUtf8("导出完成"),
+        english_ ? "The report image is in the clipboard and ready to paste."
+                 : QString::fromUtf8("报告图片已复制到剪切板，可以直接粘贴发送。"));
 }
 
 void MainWindow::clearOutput() {
     if (outputEdit_->toPlainText().isEmpty()) return;
 
-    QMessageBox confirmation(QMessageBox::Question,
-                             english_ ? "Clear output" : QString::fromUtf8("清空日志"),
-                             english_ ? "Clear all test output?"
-                                      : QString::fromUtf8("确定要清空全部测试日志吗？"),
-                             QMessageBox::NoButton,
-                             this);
-    QPushButton* clear = confirmation.addButton(
-        english_ ? "Clear" : QString::fromUtf8("清空"), QMessageBox::DestructiveRole);
-    confirmation.addButton(english_ ? "Cancel" : QString::fromUtf8("取消"),
-                           QMessageBox::RejectRole);
-    confirmation.exec();
-    if (confirmation.clickedButton() == clear) outputEdit_->clear();
+    if (confirmTextMessage(
+            this,
+            english_ ? "Clear output" : QString::fromUtf8("清空日志"),
+            english_ ? "Clear all test output?"
+                     : QString::fromUtf8("确定要清空全部测试日志吗？"),
+            english_ ? "Clear" : QString::fromUtf8("清空"),
+            english_ ? "Cancel" : QString::fromUtf8("取消"))) {
+        outputEdit_->clear();
+    }
 }

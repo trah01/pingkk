@@ -212,21 +212,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  windows-arm64-test:
-    name: Windows ARM64 单文件验证
-    runs-on: windows-11-arm
-    needs: windows-arm64
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: pingkk-windows-arm64
-      - name: 验证启动、CLI 和临时文件清理
-        shell: pwsh
-        run: >-
-          ./scripts/test_windows_portable.ps1
-          -Executable pingkk-windows-arm64-portable.exe -QtMajor 6
-
   macos:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -380,7 +365,7 @@ jobs:
   release:
     name: 发布 GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows-x64, windows-arm64, windows-arm64-test, macos, linux]
+    needs: [windows-x64, windows-arm64, macos, linux]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

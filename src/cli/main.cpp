@@ -30,15 +30,15 @@ void stopRunning(int) {
 void printCurrentDns() {
     const std::vector<std::string> servers = pingkk::currentDnsServers();
     if (servers.empty()) {
-        std::cerr << "当前 DNS：未检测到系统 DNS 服务器\n";
+        std::cout << "当前 DNS：未检测到\n";
         return;
     }
-    std::cerr << "当前 DNS：";
+    std::cout << "当前 DNS：";
     for (std::size_t index = 0; index < servers.size(); ++index) {
-        if (index > 0) std::cerr << ", ";
-        std::cerr << servers[index];
+        if (index > 0) std::cout << ", ";
+        std::cout << servers[index];
     }
-    std::cerr << "\n";
+    std::cout << "\n";
 }
 
 void printHelp() {
@@ -106,6 +106,7 @@ int runPingOrRoute(const std::string& input,
     if (target.host != target.ip) {
         std::cout << "域名 " << target.host << " 解析为 IP " << target.ip << "\n";
     }
+    printCurrentDns();
 
     if (route) {
         std::cout << "正在追踪到 " << target.ip << " 的路由，最多 30 跳：\n";
@@ -121,7 +122,7 @@ int runPingOrRoute(const std::string& input,
                     return 1;
                 }
             } else {
-                std::cout << result.address << "  " << result.elapsedMilliseconds << " 毫秒";
+                std::cout << result.address << "  " << result.elapsedMilliseconds << "毫秒";
             }
             std::cout << "\n";
             if (result.destinationReached) {
@@ -146,7 +147,7 @@ int runPingOrRoute(const std::string& input,
         if (result.reachable) {
             anyReply = true;
             std::cout << "来自 " << result.replyAddress << "：时间="
-                      << result.elapsedMilliseconds << " 毫秒";
+                      << result.elapsedMilliseconds << "毫秒";
             if (result.ttl >= 0) std::cout << " TTL=" << result.ttl;
             std::cout << "\n";
         } else {
@@ -236,7 +237,7 @@ void printProbe(const pingkk::ResolvedTarget& target,
     } else {
         std::cout << "不通";
     }
-    std::cout << "（" << result.message << "，" << result.elapsedMilliseconds << " 毫秒）\n";
+    std::cout << "（" << result.message << "，" << result.elapsedMilliseconds << "毫秒）\n";
 }
 
 int launchGui(const char* executablePath) {
@@ -358,6 +359,7 @@ int main(int argc, char* argv[]) {
     if (target.host != target.ip) {
         std::cout << "域名 " << target.host << " 解析为 IP " << target.ip << "\n";
     }
+    printCurrentDns();
 
     bool allReachable = true;
     do {
