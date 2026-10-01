@@ -1,0 +1,52 @@
+name: 发布项目网站
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "assets/*.png"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 配置 Pages
+        uses: actions/configure-pages@v5
+      - name: 整理静态网站
+        run: |
+          mkdir -p _site/assets
+          cp website/style.css website/sitemap.xml website/google2c8c9083e41bca20.html _site/
+          sed 's|\.\./assets/|assets/|g' website/index.html > _site/index.html
+          cp assets/pingkk-icon.png assets/图形界面示例.png assets/命令行示例.png assets/测试报告示例.png _site/assets/
+          touch _site/.nojekyll
+      - name: 上传网站
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 发布到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

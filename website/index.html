@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pingkk（ping看看）｜跨平台网络诊断工具</title>
+  <meta name="description" content="pingkk（ping看看）是一款支持 Windows、macOS 和 Linux 的网络诊断工具，提供 TCP/UDP 端口测试、Ping、路由追踪、DNS 检测、一键网络体检和报告导出，支持中文图形界面及命令行。">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="canonical" href="https://trah01.github.io/pingkk/">
+  <link rel="icon" href="../assets/pingkk-icon.png" type="image/png">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="pingkk（ping看看）｜跨平台网络诊断工具">
+  <meta property="og:description" content="测端口、查 DNS、追踪路由，把网络问题和测试结果看清楚。支持 Windows、macOS 和 Linux。">
+  <meta property="og:url" content="https://trah01.github.io/pingkk/">
+  <meta property="og:image" content="https://trah01.github.io/pingkk/assets/图形界面示例.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"pingkk（ping看看）","description":"跨平台网络诊断工具，支持 TCP/UDP 端口测试、Ping、路由追踪、DNS 检测和报告导出。","url":"https://trah01.github.io/pingkk/","downloadUrl":"https://github.com/trah01/pingkk/releases/latest","operatingSystem":"Windows, macOS, Linux","applicationCategory":"UtilitiesApplication","license":"https://www.gnu.org/licenses/lgpl-3.0.html","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}}
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <header class="header wrap">
+    <a class="brand" href="#" aria-label="ping看看首页"><img src="../assets/pingkk-icon.png" width="36" height="36" alt=""><span>ping看看<span class="brand-en">pingkk</span></span></a>
+    <nav aria-label="主导航"><a href="#features">功能</a><a href="#download">下载</a><a href="https://github.com/trah01/pingkk">GitHub <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main id="main" class="wrap">
+    <section class="intro" aria-labelledby="intro-title">
+      <div class="intro-copy">
+        <p class="eyebrow">网络诊断 · 中文界面 · 多平台</p>
+        <h1 id="intro-title">网络哪里不通，<br>用 ping看看。</h1>
+        <p class="lead">测端口、查 DNS、追踪路由。<br>把排查过程变简单，把测试结果带走。</p>
+        <div class="actions"><a class="button primary" href="https://github.com/trah01/pingkk/releases/latest">下载 pingkk <span aria-hidden="true">↓</span></a><a class="text-link" href="https://github.com/trah01/pingkk">查看源代码 <span aria-hidden="true">↗</span></a></div>
+        <p class="platforms">Windows <span>/</span> macOS <span>/</span> Linux</p>
+      </div>
+      <figure class="product"><a href="../assets/图形界面示例.png" aria-label="查看完整图形界面截图"><img src="../assets/图形界面示例.png" width="1600" height="1156" alt="ping看看图形界面：填写目标地址和端口，选择测试方式，查看日志并导出结果" fetchpriority="high"></a><figcaption><span>图形界面</span><span>填入地址，即可开始测试</span></figcaption></figure>
+    </section>
+
+    <section id="features" class="section" aria-labelledby="features-title">
+      <div class="section-heading"><h2 id="features-title">从连通性，到问题线索</h2><span class="section-note">日常排查，一处完成</span></div>
+      <div class="features">
+        <article><span class="number">01</span><h3>地址与端口测试</h3><p>Ping、TCP 和 UDP 端口测试，支持多个端口、持续测试和自定义超时。</p></article>
+        <article><span class="number">02</span><h3>路由与 DNS 诊断</h3><p>追踪连接路径，对比系统 DNS、当前 DNS、阿里 DNS 和腾讯 DNS 的解析结果。</p></article>
+        <article><span class="number">03</span><h3>一键网络体检</h3><p>检查本机出口、默认网关、DNS、代理和 HTTPS 直连，集中查看网络状态。</p></article>
+        <article><span class="number">04</span><h3>测试结果直接导出</h3><p>将图形界面的测试结果保存为报告图片，发给同事或运维人员继续排查。</p></article>
+      </div>
+    </section>
+
+    <section class="section modes" aria-label="命令行与测试报告">
+      <article class="mode"><div class="section-heading"><h2>习惯命令行？一样顺手。</h2><span class="section-note">CLI</span></div><p>图形界面包已内置命令行，也可单独下载 CLI 包。</p><a class="image-link" href="../assets/命令行示例.png"><img src="../assets/命令行示例.png" width="1326" height="744" alt="pingkk 命令行测试示例" loading="lazy"></a></article>
+      <article class="mode"><div class="section-heading"><h2>把结果发出去。</h2><span class="section-note">报告导出</span></div><p>不用逐条复制日志，一键保存测试报告图片。</p><a class="image-link" href="../assets/测试报告示例.png"><img src="../assets/测试报告示例.png" width="1200" height="745" alt="ping看看导出的测试报告，包含目标信息、检测结果与日志" loading="lazy"></a></article>
+    </section>
+
+    <section id="commands" class="section" aria-labelledby="commands-title">
+      <div class="section-heading"><h2 id="commands-title">命令行用法</h2><span class="section-note">图形界面包已内置</span></div>
+      <div class="command-table"><table><thead><tr><th scope="col">操作</th><th scope="col">命令</th></tr></thead><tbody>
+        <tr><td>测试 TCP 端口</td><td><code>pingkk example.com 443 tcp</code></td></tr>
+        <tr><td>测试 UDP 端口</td><td><code>pingkk example.com 53 udp</code></td></tr>
+        <tr><td>同时测试 TCP 和 UDP</td><td><code>pingkk example.com 53 all</code></td></tr>
+        <tr><td>测试多个端口</td><td><code>pingkk example.com 80,443 tcp</code></td></tr>
+        <tr><td>持续测试</td><td><code>pingkk -t example.com 443 tcp</code></td></tr>
+        <tr><td>Ping</td><td><code>pingkk example.com</code></td></tr>
+        <tr><td>路由追踪</td><td><code>pingkk example.com -r</code></td></tr>
+        <tr><td>一键网络体检</td><td><code>pingkk --checkup</code></td></tr>
+        <tr><td>DNS 对比诊断</td><td><code>pingkk --dns example.com</code></td></tr>
+        <tr><td>详细端口测试信息</td><td><code>pingkk --advanced example.com 443 tcp</code></td></tr>
+        <tr><td>详细 DNS 诊断信息</td><td><code>pingkk -a --dns example.com</code></td></tr>
+        <tr><td>自定义超时（毫秒）</td><td><code>pingkk --timeout 1000 example.com 443 tcp</code></td></tr>
+      </tbody></table></div>
+      <p class="command-note">端口类型可选 <code>tcp</code>、<code>udp</code> 或 <code>all</code>。<code>-t</code>、<code>-r</code> / <code>--route</code>、<code>-a</code> / <code>--advanced</code> 和 <code>--timeout</code> / <code>-w</code> 可放在命令中的任意位置。</p>
+      <p class="command-note">高级输出默认关闭，使用 <code>-a</code> 或 <code>--advanced</code> 可查看单包大小、丢包率、时延范围、波动及汇总统计。</p>
+    </section>
+
+    <section id="download" class="section" aria-labelledby="download-title">
+      <div class="section-heading"><h2 id="download-title">支持的系统与下载包</h2><a class="button primary" href="https://github.com/trah01/pingkk/releases/latest">前往 GitHub 下载 <span aria-hidden="true">↗</span></a></div>
+      <div class="systems">
+        <article><h3>Windows</h3><ul><li>Windows 10 1809 及以上：x64</li><li>Windows 7 / Server 2008 R2 / Server 2016：x64 兼容版</li><li>Windows 10 1809 及以上 ARM 设备：ARM64</li></ul><p>便携单文件 <code>portable.exe</code>，双击即可使用；另有 <code>setup.exe</code> 安装包和 <code>cli.zip</code> 命令行包。</p></article>
+        <article><h3>macOS</h3><ul><li>Apple Silicon：ARM64，macOS 11 及以上</li><li>Intel：macOS 10.13 及以上</li></ul><p>应用包 <code>gui.zip</code>，解压后打开 <code>pingkk.app</code>；另有 <code>cli.zip</code> 命令行包。首次打开请参考下方说明。</p></article>
+        <article><h3>Linux</h3><ul><li>x86、x64、ARM64</li><li>构建基线：Debian 10 / glibc 2.28</li><li>图形界面需要 X11 或 XWayland</li></ul><p>便携包 <code>portable.tar.xz</code>，解压后运行 <code>run-pingkk.sh</code>；另有 DEB 安装包和 <code>cli.tar.gz</code> 命令行包。</p></article>
+      </div>
+      <div class="help"><details><summary>macOS 提示无法验证应用，怎么打开？</summary><p>此版本未使用 Apple Developer ID 和公证。确认从本项目 Releases 下载后，在终端进入 pingkk.app 所在目录，执行以下命令，再双击打开应用。命令只清除此应用的下载隔离标记。</p><pre><code>xattr -dr com.apple.quarantine pingkk.app</code></pre></details><details><summary>UDP 没有响应，是否意味着端口不通？</summary><p>不一定。UDP 只有收到目标响应时才显示为连通；没有响应时显示“状态未知”，不能仅据此确定端口不通。</p></details></div>
+    </section>
+  </main>
+  <footer class="footer wrap"><span>ping看看 <span class="muted">/ pingkk</span></span><div><a href="https://github.com/trah01/pingkk/issues">反馈问题</a><a href="https://github.com/trah01/pingkk">GitHub</a><a href="https://github.com/trah01/pingkk/blob/main/licenses/LGPL-3.0.txt">LGPL v3.0</a></div></footer>
+</body>
+</html>
