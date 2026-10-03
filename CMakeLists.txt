@@ -3,7 +3,7 @@ if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
 
-project(pingkk VERSION 0.1.2 LANGUAGES CXX)
+project(pingkk VERSION 0.1.3 LANGUAGES CXX)
 
 # Keep our executables (including the separately installed CLI) self-contained.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
