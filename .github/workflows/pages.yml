@@ -29,6 +29,7 @@ jobs:
         run: |
           mkdir -p _site/assets
           cp website/style.css website/sitemap.xml website/google2c8c9083e41bca20.html _site/
+          cp website/pingkk.sh website/pingkk.ps1 _site/
           sed 's|\.\./assets/|assets/|g' website/index.html > _site/index.html
           cp assets/pingkk-icon.png assets/图形界面示例.png assets/命令行示例.png assets/测试报告示例.png _site/assets/
           touch _site/.nojekyll

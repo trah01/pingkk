@@ -51,6 +51,37 @@
 
 Windows 不再提供 x86 / XP 版本。
 
+### 一键安装 CLI
+
+将安装脚本和 CLI 包部署到 `he.sb` 后，可使用以下 HTTPS 命令安装网站提供的 CLI 版本。
+
+macOS / Linux：
+
+```bash
+curl -fsSL https://he.sb/pingkk.sh | sh
+```
+
+默认安装到 `/usr/local/bin/pingkk`，需要时会通过 `sudo` 请求管理员权限。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
+
+Windows（在 PowerShell 5.1 或更高版本中执行）：
+
+```powershell
+irm https://he.sb/pingkk.ps1 | iex
+```
+
+安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。脚本中的安装提示使用英文，以兼容旧版 PowerShell 的编码处理。
+
+两个脚本均直接从 `https://he.sb/pingkk/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的版本。安装后运行 `pingkk --help`。
+
+macOS / Linux 也可安装到已有的用户目录，例如：
+
+```bash
+mkdir -p "$HOME/.local"
+curl -fsSL https://he.sb/pingkk.sh | PINGKK_PREFIX="$HOME/.local" sh
+```
+
+使用自定义目录时，需要将其 `bin` 子目录加入 PATH。
+
 ### 兼容性基线
 
 构建优先兼容旧系统，Qt 主版本和工具链按平台固定，不自动升级：
