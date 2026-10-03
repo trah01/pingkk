@@ -62,7 +62,7 @@ trap 'exit 1' HUP INT TERM
 
 asset="pingkk-$platform-cli.$extension"
 printf '正在下载 %s…\n' "$asset"
-download_url=https://he.sb/pingkk
+download_url=https://he.sb/pingkk/latest
 curl --proto '=https' --proto-redir '=https' -fsSL \
     -o "$work_dir/SHA256SUMS.txt" "$download_url/SHA256SUMS.txt" || fail '无法下载校验文件，请检查网站连接。'
 expected=$(awk -v name="$asset" '$2 == name { print $1; exit }' "$work_dir/SHA256SUMS.txt")

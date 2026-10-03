@@ -27,7 +27,7 @@ try {
     $workDir = Join-Path ([IO.Path]::GetTempPath()) ('pingkk-install-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDir | Out-Null
     Write-Host "Downloading $asset..."
-    $downloadUrl = 'https://he.sb/pingkk'
+    $downloadUrl = 'https://he.sb/pingkk/latest'
     $response = Invoke-WebRequest -UseBasicParsing -Uri "$downloadUrl/SHA256SUMS.txt"
     $expected = $null
     foreach ($line in ($response.Content -split "`n")) {
