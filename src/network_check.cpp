@@ -1,3 +1,4 @@
+#include "pingkk/language.h"
 #include "pingkk/network_check.h"
 #include "pingkk/core.h"
 
@@ -15,6 +16,7 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <winhttp.h>
+#include <netioapi.h>
 typedef SOCKET DnsSocket;
 typedef int DnsAddressLength;
 static const DnsSocket kInvalidDnsSocket = INVALID_SOCKET;
@@ -129,11 +131,27 @@ bool makeDnsServerAddress(const std::string& server,
         return true;
     }
     sockaddr_in6* ipv6 = reinterpret_cast<sockaddr_in6*>(&address);
-    if (inet_pton(AF_INET6, server.c_str(), &ipv6->sin6_addr) == 1) {
+    if (server.find('%') == std::string::npos &&
+        inet_pton(AF_INET6, server.c_str(), &ipv6->sin6_addr) == 1) {
         ipv6->sin6_family = AF_INET6;
         ipv6->sin6_port = htons(53);
         length = sizeof(sockaddr_in6);
         return true;
+    }
+    // Link-local DNS servers may include an interface name or scope ID.
+    addrinfo hints = {};
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+    addrinfo* scoped = NULL;
+    if (getaddrinfo(server.c_str(), "53", &hints, &scoped) == 0 && scoped != NULL) {
+        if (scoped->ai_addrlen <= sizeof(address)) {
+            std::memcpy(&address, scoped->ai_addr, scoped->ai_addrlen);
+            length = static_cast<DnsAddressLength>(scoped->ai_addrlen);
+            freeaddrinfo(scoped);
+            return true;
+        }
+        freeaddrinfo(scoped);
     }
     return false;
 }
@@ -154,7 +172,7 @@ bool queryRecord(const std::string& host,
     sockaddr_storage destination;
     DnsAddressLength destinationLength = 0;
     if (!runtime.ready() || !makeDnsServerAddress(server, destination, destinationLength)) {
-        error = "DNS 服务器地址无效";
+        error = pingkk::text("DNS 服务器地址无效");
         return false;
     }
 
@@ -168,7 +186,7 @@ bool queryRecord(const std::string& host,
     appendU16(query, 0);
     appendU16(query, 0);
     if (!appendDnsName(query, host)) {
-        error = "域名格式不正确";
+        error = pingkk::text("域名格式不正确");
         return false;
     }
     appendU16(query, type);
@@ -179,14 +197,14 @@ bool queryRecord(const std::string& host,
     const int family = destination.ss_family;
     DnsSocket socket = ::socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (socket == kInvalidDnsSocket) {
-        error = "无法创建 DNS 查询";
+        error = pingkk::text("无法创建 DNS 查询");
         return false;
     }
     if (::connect(socket,
                   reinterpret_cast<sockaddr*>(&destination),
                   destinationLength) != 0) {
         closeDnsSocket(socket);
-        error = "无法连接 DNS 服务器";
+        error = pingkk::text("无法连接 DNS 服务器");
         return false;
     }
     const int sent = send(socket,
@@ -199,7 +217,7 @@ bool queryRecord(const std::string& host,
                           0);
     if (sent < 0) {
         closeDnsSocket(socket);
-        error = "DNS 查询发送失败";
+        error = pingkk::text("DNS 查询发送失败");
         return false;
     }
 
@@ -214,7 +232,7 @@ bool queryRecord(const std::string& host,
     if (selected <= 0) {
         closeDnsSocket(socket);
         elapsedMilliseconds = elapsedSince(start);
-        error = selected == 0 ? "查询超时" : "DNS 查询失败";
+        error = selected == 0 ? pingkk::text("查询超时") : pingkk::text("DNS 查询失败");
         return false;
     }
 
@@ -229,26 +247,26 @@ bool queryRecord(const std::string& host,
     closeDnsSocket(socket);
     elapsedMilliseconds = elapsedSince(start);
     if (received < 12 || readU16(response) != identifier) {
-        error = "DNS 响应无效";
+        error = pingkk::text("DNS 响应无效");
         return false;
     }
     const unsigned short flags = readU16(response + 2);
     if ((flags & 0x8000) == 0) {
-        error = "收到的 DNS 数据不是响应";
+        error = pingkk::text("收到的 DNS 数据不是响应");
         return false;
     }
     if ((flags & 0x0200) != 0) {
-        error = "DNS 响应被截断";
+        error = pingkk::text("DNS 响应被截断");
         return false;
     }
     const int responseCode = flags & 0x0f;
     if (responseCode != 0) {
         nameDoesNotExist = responseCode == 3;
         if (nameDoesNotExist) {
-            error = "域名不存在（NXDOMAIN）";
+            error = pingkk::text("域名不存在（NXDOMAIN）");
         } else {
             std::ostringstream message;
-            message << "DNS 返回错误码 " << responseCode;
+            message << pingkk::text("DNS 返回错误码 ") << responseCode;
             error = message.str();
         }
         return false;
@@ -258,25 +276,25 @@ bool queryRecord(const std::string& host,
     const unsigned short questions = readU16(response + 4);
     const unsigned short answers = readU16(response + 6);
     if (questions != 1) {
-        error = "DNS 响应中的查询数量不正确";
+        error = pingkk::text("DNS 响应中的查询数量不正确");
         return false;
     }
     std::size_t offset = 12;
     for (unsigned short index = 0; index < questions; ++index) {
         if (!skipDnsName(response, responseSize, offset) || offset + 4 > responseSize) {
-            error = "DNS 响应格式错误";
+            error = pingkk::text("DNS 响应格式错误");
             return false;
         }
         if (readU16(response + offset) != type ||
             readU16(response + offset + 2) != 1) {
-            error = "DNS 响应与查询不匹配";
+            error = pingkk::text("DNS 响应与查询不匹配");
             return false;
         }
         offset += 4;
     }
     for (unsigned short index = 0; index < answers; ++index) {
         if (!skipDnsName(response, responseSize, offset) || offset + 10 > responseSize) {
-            error = "DNS 响应格式错误";
+            error = pingkk::text("DNS 响应格式错误");
             return false;
         }
         const unsigned short recordType = readU16(response + offset);
@@ -284,7 +302,7 @@ bool queryRecord(const std::string& host,
         const unsigned short dataLength = readU16(response + offset + 8);
         offset += 10;
         if (offset + dataLength > responseSize) {
-            error = "DNS 响应格式错误";
+            error = pingkk::text("DNS 响应格式错误");
             return false;
         }
         char text[INET6_ADDRSTRLEN] = {0};
@@ -299,7 +317,7 @@ bool queryRecord(const std::string& host,
     }
     if (addresses.size() == initialAddressCount) {
         noAddressRecords = true;
-        error = type == 1 ? "没有返回 A 记录" : "没有返回 AAAA 记录";
+        error = type == 1 ? pingkk::text("没有返回 A 记录") : pingkk::text("没有返回 AAAA 记录");
         return false;
     }
     return true;
@@ -308,7 +326,8 @@ bool queryRecord(const std::string& host,
 DnsLookupResult queryResolver(const std::string& host,
                               const std::string& name,
                               const std::string& server,
-                              int timeoutMilliseconds) {
+                              int timeoutMilliseconds,
+                              IpVersion version) {
     DnsLookupResult result;
     result.resolverName = name;
     result.resolverAddress = server;
@@ -324,51 +343,60 @@ DnsLookupResult queryResolver(const std::string& host,
     bool ipv6NameDoesNotExist = false;
     bool ipv4NoAddressRecords = false;
     bool ipv6NoAddressRecords = false;
-    const bool ipv4Ok = queryRecord(host, server, 1, timeoutMilliseconds,
+    const bool ipv4Ok = version != IpVersion::V6 && queryRecord(host, server, 1, timeoutMilliseconds,
                                     result.ipv4Addresses, ipv4Error,
                                     ipv4NameDoesNotExist, ipv4NoAddressRecords,
                                     ipv4Elapsed);
-    const bool ipv6Ok = queryRecord(host, server, 28, timeoutMilliseconds,
+    const bool ipv6Ok = version != IpVersion::V4 && queryRecord(host, server, 28, timeoutMilliseconds,
                                     result.ipv6Addresses, ipv6Error,
                                     ipv6NameDoesNotExist, ipv6NoAddressRecords,
                                     ipv6Elapsed);
     result.elapsedMilliseconds = ipv4Elapsed + ipv6Elapsed;
     result.success = ipv4Ok || ipv6Ok;
-    result.nameDoesNotExist = ipv4NameDoesNotExist && ipv6NameDoesNotExist;
-    result.noAddressRecords = ipv4NoAddressRecords && ipv6NoAddressRecords;
+    result.nameDoesNotExist = version == IpVersion::V4 ? ipv4NameDoesNotExist :
+                             version == IpVersion::V6 ? ipv6NameDoesNotExist :
+                             ipv4NameDoesNotExist && ipv6NameDoesNotExist;
+    result.noAddressRecords = version == IpVersion::V4 ? ipv4NoAddressRecords :
+                             version == IpVersion::V6 ? ipv6NoAddressRecords :
+                             ipv4NoAddressRecords && ipv6NoAddressRecords;
     if (!result.success) {
-        result.error = ipv4Error == ipv6Error || ipv6Error.empty()
+        result.error = ipv4Error.empty() ? ipv6Error :
+                       ipv4Error == ipv6Error || ipv6Error.empty()
                            ? ipv4Error
-                           : ipv4Error + "；" + ipv6Error;
+                           : ipv4Error + pingkk::text("；") + ipv6Error;
     }
     return result;
 }
 
-DnsLookupResult querySystemResolver(const std::string& host) {
+DnsLookupResult querySystemResolver(const std::string& host, IpVersion version) {
     DnsLookupResult result;
-    result.resolverName = "系统 DNS";
-    result.resolverAddress = "自动";
+    result.resolverName = pingkk::text("系统 DNS");
+    result.resolverAddress = pingkk::text("自动");
     result.success = false;
     result.nameDoesNotExist = false;
     result.noAddressRecords = false;
+    result.elapsedMilliseconds = 0;
     DnsSocketRuntime runtime;
     if (!runtime.ready()) {
-        result.error = "网络组件初始化失败";
+        result.error = pingkk::text("网络组件初始化失败");
         return result;
     }
     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     addrinfo hints;
     std::memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = version == IpVersion::V6 ? AF_INET6 :
+                      version == IpVersion::V4 ? AF_INET : AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     addrinfo* records = NULL;
     const int status = getaddrinfo(host.c_str(), NULL, &hints, &records);
     result.elapsedMilliseconds = elapsedSince(start);
     if (status != 0 || records == NULL) {
-        result.error = "系统解析失败";
+        result.error = pingkk::text("系统解析失败");
         return result;
     }
     for (addrinfo* current = records; current != NULL; current = current->ai_next) {
+        if (current->ai_family == AF_INET6 &&
+            IN6_IS_ADDR_V4MAPPED(&reinterpret_cast<const sockaddr_in6*>(current->ai_addr)->sin6_addr)) continue;
         char text[NI_MAXHOST] = {0};
         if (getnameinfo(current->ai_addr,
                         static_cast<DnsAddressLength>(current->ai_addrlen),
@@ -378,7 +406,7 @@ DnsLookupResult querySystemResolver(const std::string& host) {
     }
     freeaddrinfo(records);
     result.success = !result.ipv4Addresses.empty() || !result.ipv6Addresses.empty();
-    if (!result.success) result.error = "没有返回 A 或 AAAA 记录";
+    if (!result.success) result.error = pingkk::text("没有返回 A 或 AAAA 记录");
     return result;
 }
 
@@ -429,22 +457,93 @@ std::string utf8FromWide(const wchar_t* value) {
 }
 #endif
 
+std::string ipv6Gateway() {
+#ifdef _WIN32
+    DnsSocketRuntime runtime;
+    if (!runtime.ready()) return pingkk::text("未知");
+    SOCKADDR_INET destination = {};
+    destination.Ipv6.sin6_family = AF_INET6;
+    inet_pton(AF_INET6, "2400:3200::1", &destination.Ipv6.sin6_addr);
+    MIB_IPFORWARD_ROW2 route = {};
+    SOCKADDR_INET source = {};
+    if (GetBestRoute2(NULL, 0, NULL, &destination, 0, &route, &source) == NO_ERROR) {
+        char text[INET6_ADDRSTRLEN] = {0};
+        if (inet_ntop(AF_INET6, &route.NextHop.Ipv6.sin6_addr, text, sizeof(text)) != NULL) {
+            std::string gateway(text);
+            if (IN6_IS_ADDR_LINKLOCAL(&route.NextHop.Ipv6.sin6_addr)) {
+                gateway += "%" + std::to_string(route.InterfaceIndex);
+            }
+            return gateway;
+        }
+    }
+#elif defined(__APPLE__)
+    SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR("pingkk-gateway6"), NULL, NULL);
+    if (store != NULL) {
+        CFDictionaryRef value = static_cast<CFDictionaryRef>(
+            SCDynamicStoreCopyValue(store, CFSTR("State:/Network/Global/IPv6")));
+        if (value != NULL) {
+            CFStringRef router = static_cast<CFStringRef>(CFDictionaryGetValue(value, CFSTR("Router")));
+            char text[256] = {0};
+            if (router != NULL && CFStringGetCString(router, text, sizeof(text), kCFStringEncodingUTF8)) {
+                CFRelease(value);
+                CFRelease(store);
+                return text;
+            }
+            CFRelease(value);
+        }
+        CFRelease(store);
+    }
+#else
+    std::ifstream routes("/proc/net/ipv6_route");
+    std::string line;
+    std::string bestGateway;
+    unsigned long bestMetric = ~0ul;
+    while (std::getline(routes, line)) {
+        std::istringstream stream(line);
+        std::string destination, prefix, source, sourcePrefix, gateway;
+        std::string metric, references, uses, flags, interfaceName;
+        if (!(stream >> destination >> prefix >> source >> sourcePrefix >> gateway
+                     >> metric >> references >> uses >> flags >> interfaceName)) continue;
+        const unsigned long routeFlags = std::strtoul(flags.c_str(), NULL, 16);
+        const unsigned long routeMetric = std::strtoul(metric.c_str(), NULL, 16);
+        if (destination != std::string(32, '0') || prefix != "00" || sourcePrefix != "00" ||
+            gateway.size() != 32 || !(routeFlags & 1) || (routeFlags & 0x200) ||
+            routeMetric >= bestMetric) continue;
+        in6_addr address = {};
+        for (int index = 0; index < 16; ++index) {
+            address.s6_addr[index] = static_cast<unsigned char>(
+                std::strtoul(gateway.substr(index * 2, 2).c_str(), NULL, 16));
+        }
+        char text[INET6_ADDRSTRLEN] = {0};
+        if (inet_ntop(AF_INET6, &address, text, sizeof(text)) == NULL) continue;
+        bestGateway = text;
+        if (IN6_IS_ADDR_LINKLOCAL(&address)) bestGateway += "%" + interfaceName;
+        bestMetric = routeMetric;
+    }
+    if (!bestGateway.empty()) return bestGateway;
+#endif
+    return pingkk::text("未知");
+}
+
 }  // namespace
 
 std::vector<DnsLookupResult> compareDns(const std::string& input,
-                                        int timeoutMilliseconds) {
+                                        int timeoutMilliseconds,
+                                        IpVersion version) {
     const std::string host = extractHost(input);
     std::vector<DnsLookupResult> results;
     if (host.empty()) return results;
-    results.push_back(querySystemResolver(host));
+    results.push_back(querySystemResolver(host, version));
 
     std::vector<std::pair<std::string, std::string> > resolvers;
     const std::vector<std::string> systemServers = currentDnsServers();
     for (std::size_t index = 0; index < systemServers.size(); ++index) {
-        resolvers.push_back(std::make_pair("当前 DNS", systemServers[index]));
+        const bool ipv6 = systemServers[index].find(':') != std::string::npos;
+        if ((version == IpVersion::V6 && !ipv6) || (version == IpVersion::V4 && ipv6)) continue;
+        resolvers.push_back(std::make_pair(pingkk::text("当前 DNS"), systemServers[index]));
     }
-    resolvers.push_back(std::make_pair("阿里 DNS", "223.5.5.5"));
-    resolvers.push_back(std::make_pair("腾讯 DNS", "119.29.29.29"));
+    resolvers.push_back(std::make_pair(pingkk::text("阿里 DNS"), version == IpVersion::V6 ? "2400:3200::1" : "223.5.5.5"));
+    resolvers.push_back(std::make_pair(pingkk::text("腾讯 DNS"), version == IpVersion::V6 ? "2402:4e00::" : "119.29.29.29"));
 
     std::set<std::string> queried;
     for (std::size_t index = 0; index < resolvers.size(); ++index) {
@@ -452,12 +551,13 @@ std::vector<DnsLookupResult> compareDns(const std::string& input,
         results.push_back(queryResolver(host,
                                         resolvers[index].first,
                                         resolvers[index].second,
-                                        timeoutMilliseconds));
+                                        timeoutMilliseconds, version));
     }
     return results;
 }
 
-std::string defaultGateway() {
+std::string defaultGateway(IpVersion version) {
+    if (version == IpVersion::V6) return ipv6Gateway();
 #ifdef _WIN32
     MIB_IPFORWARDROW route;
     if (GetBestRoute(inet_addr("223.5.5.5"), 0, &route) == NO_ERROR) {
@@ -503,7 +603,7 @@ std::string defaultGateway() {
         if (inet_ntop(AF_INET, &address, text, sizeof(text)) != NULL) return text;
     }
 #endif
-    return "未知";
+    return pingkk::text("未知");
 }
 
 std::vector<std::string> currentProxySettings() {
@@ -519,9 +619,9 @@ std::vector<std::string> currentProxySettings() {
     if (settings != NULL) {
         struct ProxyKey { CFStringRef enabled; CFStringRef host; CFStringRef port; const char* name; };
         const ProxyKey keys[] = {
-            {kSCPropNetProxiesHTTPEnable, kSCPropNetProxiesHTTPProxy, kSCPropNetProxiesHTTPPort, "系统 HTTP"},
-            {kSCPropNetProxiesHTTPSEnable, kSCPropNetProxiesHTTPSProxy, kSCPropNetProxiesHTTPSPort, "系统 HTTPS"},
-            {kSCPropNetProxiesSOCKSEnable, kSCPropNetProxiesSOCKSProxy, kSCPropNetProxiesSOCKSPort, "系统 SOCKS"}
+            {kSCPropNetProxiesHTTPEnable, kSCPropNetProxiesHTTPProxy, kSCPropNetProxiesHTTPPort, pingkk::text("系统 HTTP")},
+            {kSCPropNetProxiesHTTPSEnable, kSCPropNetProxiesHTTPSProxy, kSCPropNetProxiesHTTPSPort, pingkk::text("系统 HTTPS")},
+            {kSCPropNetProxiesSOCKSEnable, kSCPropNetProxiesSOCKSProxy, kSCPropNetProxiesSOCKSPort, pingkk::text("系统 SOCKS")}
         };
         for (std::size_t index = 0; index < sizeof(keys) / sizeof(keys[0]); ++index) {
             CFNumberRef enabled = static_cast<CFNumberRef>(CFDictionaryGetValue(settings, keys[index].enabled));
@@ -545,10 +645,10 @@ std::vector<std::string> currentProxySettings() {
     std::memset(&configuration, 0, sizeof(configuration));
     if (WinHttpGetIEProxyConfigForCurrentUser(&configuration)) {
         const std::string proxy = utf8FromWide(configuration.lpszProxy);
-        if (!proxy.empty()) appendUnique(proxies, "系统代理=" + safeProxyList(proxy));
-        if (configuration.fAutoDetect) appendUnique(proxies, "系统自动代理检测=已启用");
+        if (!proxy.empty()) appendUnique(proxies, pingkk::text("系统代理=") + safeProxyList(proxy));
+        if (configuration.fAutoDetect) appendUnique(proxies, pingkk::text("系统自动代理检测=已启用"));
         if (configuration.lpszAutoConfigUrl != NULL) {
-            appendUnique(proxies, "系统 PAC=已启用");
+            appendUnique(proxies, pingkk::text("系统 PAC=已启用"));
         }
         if (configuration.lpszAutoConfigUrl != NULL) GlobalFree(configuration.lpszAutoConfigUrl);
         if (configuration.lpszProxy != NULL) GlobalFree(configuration.lpszProxy);

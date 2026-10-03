@@ -1,4 +1,6 @@
+#include "pingkk/language.h"
 #include "pingkk/diagnostics.h"
+#include "diagnostics_ipv6.h"
 
 #include <chrono>
 #include <cstdint>
@@ -50,13 +52,13 @@ std::string ipv4Text(IPAddr address) {
 std::string icmpStatusText(IP_STATUS status) {
     switch (status) {
         case IP_SUCCESS: return std::string();
-        case IP_REQ_TIMED_OUT: return "请求超时";
-        case IP_TTL_EXPIRED_TRANSIT: return "TTL 已过期";
-        case IP_DEST_HOST_UNREACHABLE: return "目标主机不可达";
-        case IP_DEST_NET_UNREACHABLE: return "目标网络不可达";
+        case IP_REQ_TIMED_OUT: return pingkk::text("请求超时");
+        case IP_TTL_EXPIRED_TRANSIT: return pingkk::text("TTL 已过期");
+        case IP_DEST_HOST_UNREACHABLE: return pingkk::text("目标主机不可达");
+        case IP_DEST_NET_UNREACHABLE: return pingkk::text("目标网络不可达");
         default: {
             std::ostringstream stream;
-            stream << "ICMP 状态 " << status;
+            stream << pingkk::text("ICMP 状态 ") << status;
             return stream.str();
         }
     }
@@ -70,13 +72,13 @@ bool sendWindowsEcho(const ResolvedTarget& target,
     ttlExpired = false;
     const IPAddr destination = inet_addr(target.ip.c_str());
     if (destination == INADDR_NONE) {
-        result.error = "当前仅支持 IPv4 的 Ping 和路由追踪";
+        result.error = pingkk::text("IPv4 地址无效");
         return false;
     }
 
     HANDLE handle = IcmpCreateFile();
     if (handle == INVALID_HANDLE_VALUE) {
-        result.error = "无法创建 ICMP 探测";
+        result.error = pingkk::text("无法创建 ICMP 探测");
         return false;
     }
 
@@ -98,7 +100,7 @@ bool sendWindowsEcho(const ResolvedTarget& target,
     result.elapsedMilliseconds = elapsedSince(start);
     if (count == 0) {
         const DWORD error = GetLastError();
-        result.error = error == IP_REQ_TIMED_OUT ? "请求超时" : "ICMP 探测失败";
+        result.error = error == IP_REQ_TIMED_OUT ? pingkk::text("请求超时") : pingkk::text("ICMP 探测失败");
         IcmpCloseHandle(handle);
         return false;
     }
@@ -194,7 +196,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
     std::memset(&destination, 0, sizeof(destination));
     destination.sin_family = AF_INET;
     if (inet_pton(AF_INET, target.ip.c_str(), &destination.sin_addr) != 1) {
-        result.error = "当前仅支持 IPv4 的 Ping 和路由追踪";
+        result.error = pingkk::text("IPv4 地址无效");
         return false;
     }
 
@@ -206,7 +208,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
     }
     if (socketHandle < 0) {
         result.error = errno == EPERM || errno == EACCES
-                           ? "系统不允许当前用户发送 ICMP，请授予网络诊断权限"
+                           ? pingkk::text("系统不允许当前用户发送 ICMP，请授予网络诊断权限")
                            : std::strerror(errno);
         return false;
     }
@@ -247,7 +249,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
         const int selected = select(socketHandle + 1, &readSet, NULL, NULL, &timeout);
         if (selected == 0) break;
         if (selected < 0) {
-            result.error = errno == EINTR ? "探测已中断" : std::strerror(errno);
+            result.error = errno == EINTR ? pingkk::text("探测已中断") : std::strerror(errno);
             close(socketHandle);
             return false;
         }
@@ -285,7 +287,7 @@ bool sendPosixEcho(const ResolvedTarget& target,
     }
 
     result.elapsedMilliseconds = elapsedSince(start);
-    result.error = "请求超时";
+    result.error = pingkk::text("请求超时");
     close(socketHandle);
     return false;
 }
@@ -299,6 +301,10 @@ PingResult ping(const ResolvedTarget& target,
                 unsigned short sequence) {
     PingResult result = {false, std::string(), 0, -1, 16, 44, std::string()};
     bool ttlExpired = false;
+    if (target.ip.find(':') != std::string::npos) {
+        sendIpv6Echo(target, 64, timeoutMilliseconds, sequence, result, ttlExpired);
+        return result;
+    }
 #ifdef _WIN32
     sendWindowsEcho(target, 64, timeoutMilliseconds, result, ttlExpired);
 #else
@@ -313,20 +319,25 @@ TraceHop traceHop(const ResolvedTarget& target,
                   unsigned short sequence) {
     PingResult pingResult = {false, std::string(), 0, -1, 16, 44, std::string()};
     bool ttlExpired = false;
+    bool responded;
+    if (target.ip.find(':') != std::string::npos) {
+        responded = sendIpv6Echo(target, hop, timeoutMilliseconds, sequence, pingResult, ttlExpired);
+    } else {
 #ifdef _WIN32
-    const bool responded = sendWindowsEcho(target,
+    responded = sendWindowsEcho(target,
                                            hop,
                                            timeoutMilliseconds,
                                            pingResult,
                                            ttlExpired);
 #else
-    const bool responded = sendPosixEcho(target,
+    responded = sendPosixEcho(target,
                                          hop,
                                          timeoutMilliseconds,
                                          sequence,
                                          pingResult,
                                          ttlExpired);
 #endif
+    }
     TraceHop result;
     result.number = hop;
     result.responded = responded;

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pingkk（ping看看）｜跨平台网络诊断工具</title>
-  <meta name="description" content="pingkk（ping看看）是一款支持 Windows、macOS 和 Linux 的网络诊断工具，提供 TCP/UDP 端口测试、Ping、路由追踪、DNS 检测、一键网络体检和报告导出，支持中文图形界面及命令行。">
+  <meta name="description" content="pingkk（ping看看）是一款支持 Windows、macOS 和 Linux 的网络诊断工具，提供 TCP/UDP 端口测试、Ping、路由追踪、DNS 检测、一键网络检查和报告导出，支持中文图形界面及命令行。">
   <meta name="theme-color" content="#ffffff">
   <link rel="canonical" href="https://trah01.github.io/pingkk/">
   <link rel="icon" href="../assets/pingkk-icon.png" type="image/png">
@@ -43,7 +43,7 @@
       <div class="features">
         <article><span class="number">01</span><h3>地址与端口测试</h3><p>Ping、TCP 和 UDP 端口测试，支持多个端口、持续测试和自定义超时。</p></article>
         <article><span class="number">02</span><h3>路由与 DNS 诊断</h3><p>追踪连接路径，对比系统 DNS、当前 DNS、阿里 DNS 和腾讯 DNS 的解析结果。</p></article>
-        <article><span class="number">03</span><h3>一键网络体检</h3><p>检查本机出口、默认网关、DNS、代理和 HTTPS 直连，集中查看网络状态。</p></article>
+        <article><span class="number">03</span><h3>一键网络检查</h3><p>检查本机出口、默认网关、DNS、代理和 HTTPS 直连，集中查看网络状态。</p></article>
         <article><span class="number">04</span><h3>测试结果直接导出</h3><p>将图形界面的测试结果保存为报告图片，发给同事或运维人员继续排查。</p></article>
       </div>
     </section>
@@ -63,7 +63,7 @@
         <tr><td>持续测试</td><td><code>pingkk -t example.com 443 tcp</code></td></tr>
         <tr><td>Ping</td><td><code>pingkk example.com</code></td></tr>
         <tr><td>路由追踪</td><td><code>pingkk example.com -r</code></td></tr>
-        <tr><td>一键网络体检</td><td><code>pingkk --checkup</code></td></tr>
+        <tr><td>一键网络检查</td><td><code>pingkk --checkup</code></td></tr>
         <tr><td>DNS 对比诊断</td><td><code>pingkk --dns example.com</code></td></tr>
         <tr><td>详细端口测试信息</td><td><code>pingkk --advanced example.com 443 tcp</code></td></tr>
         <tr><td>详细 DNS 诊断信息</td><td><code>pingkk -a --dns example.com</code></td></tr>

@@ -37,7 +37,9 @@ endif()
 
 add_library(pingkk_core
     src/core.cpp
+    src/language.cpp
     src/diagnostics.cpp
+    src/diagnostics_ipv6.cpp
     src/network_check.cpp
 )
 target_include_directories(pingkk_core PUBLIC
@@ -63,8 +65,12 @@ if(APPLE)
     )
 endif()
 
-add_executable(pingkk src/cli/main.cpp)
+add_executable(pingkk src/cli/main.cpp src/cli/arguments.cpp)
 target_link_libraries(pingkk PRIVATE pingkk_core)
+if(APPLE)
+    find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
+    target_link_libraries(pingkk PRIVATE ${CORESERVICES_FRAMEWORK})
+endif()
 if(WIN32)
     target_sources(pingkk PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk-version.rc

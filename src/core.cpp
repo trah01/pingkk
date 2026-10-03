@@ -1,3 +1,4 @@
+#include "pingkk/language.h"
 #include "pingkk/core.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@ static const SocketHandle kInvalidSocket = INVALID_SOCKET;
 #else
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <ifaddrs.h>
 #include <netdb.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -95,31 +97,31 @@ bool connectInProgress(int error) {
 
 std::string dnsErrorText(int error) {
     if (error == EAI_AGAIN) {
-        return "域名解析暂时失败，请稍后重试";
+        return pingkk::text("域名解析暂时失败，请稍后重试");
     }
     if (error == EAI_NONAME) {
-        return "未找到该域名，请检查地址是否正确";
+        return pingkk::text("未找到该域名，请检查地址是否正确");
     }
 #ifdef EAI_NODATA
     if (error == EAI_NODATA) {
-        return "该域名没有可用的 IP 地址";
+        return pingkk::text("该域名没有可用的 IP 地址");
     }
 #endif
     if (error == EAI_FAIL) {
-        return "域名解析服务器返回错误";
+        return pingkk::text("域名解析服务器返回错误");
     }
 #ifdef EAI_SYSTEM
     if (error == EAI_SYSTEM) {
-        return "域名解析失败，请检查网络或 DNS 设置";
+        return pingkk::text("域名解析失败，请检查网络或 DNS 设置");
     }
 #endif
-    return "域名解析失败，请检查地址和网络设置";
+    return pingkk::text("域名解析失败，请检查地址和网络设置");
 }
 
 std::string errorText(int error) {
 #ifdef _WIN32
     std::ostringstream stream;
-    stream << "系统错误 " << error;
+    stream << pingkk::text("系统错误 ") << error;
     return stream.str();
 #else
     return std::strerror(error);
@@ -230,24 +232,26 @@ std::string extractHost(const std::string& input) {
 
 bool resolveTarget(const std::string& input,
                    ResolvedTarget& target,
-                   std::string& error) {
+                   std::string& error,
+                   IpVersion version) {
     target.input = input;
     target.host = extractHost(input);
     target.ip.clear();
     if (target.host.empty()) {
-        error = "目标地址为空或格式不正确";
+        error = pingkk::text("目标地址为空或格式不正确");
         return false;
     }
 
     SocketRuntime runtime;
     if (!runtime.ready()) {
-        error = "网络组件初始化失败";
+        error = pingkk::text("网络组件初始化失败");
         return false;
     }
 
     addrinfo hints;
     std::memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = version == IpVersion::V6 ? AF_INET6 :
+                      version == IpVersion::V4 ? AF_INET : AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     addrinfo* results = NULL;
     const int status = getaddrinfo(target.host.c_str(), NULL, &hints, &results);
@@ -256,12 +260,25 @@ bool resolveTarget(const std::string& input,
         return false;
     }
 
-    const addrinfo* selected = results;
+    const addrinfo* selected = NULL;
     for (const addrinfo* current = results; current != NULL; current = current->ai_next) {
+        if (current->ai_family == AF_INET6 &&
+            IN6_IS_ADDR_V4MAPPED(&reinterpret_cast<const sockaddr_in6*>(current->ai_addr)->sin6_addr)) {
+            continue;
+        }
+        if ((version == IpVersion::V4 && current->ai_family != AF_INET) ||
+            (version == IpVersion::V6 && current->ai_family != AF_INET6)) continue;
+        if (selected == NULL) selected = current;
         if (current->ai_family == AF_INET) {
             selected = current;
             break;
         }
+    }
+    if (selected == NULL) {
+        freeaddrinfo(results);
+        error = version == IpVersion::V6 ? text("目标没有可用的 IPv6 地址")
+                                        : text("目标没有可用的 IPv4 地址");
+        return false;
     }
 
     char buffer[NI_MAXHOST] = {0};
@@ -277,7 +294,7 @@ bool resolveTarget(const std::string& input,
     freeaddrinfo(results);
 
     if (target.ip.empty()) {
-        error = "解析结果中没有可用的 IP 地址";
+        error = pingkk::text("解析结果中没有可用的 IP 地址");
         return false;
     }
     return true;
@@ -288,17 +305,17 @@ std::string localAddressFor(const ResolvedTarget& target) {
     sockaddr_storage remote;
     AddressLength remoteLength = 0;
     if (!runtime.ready() || !makeAddress(target, 53, remote, remoteLength)) {
-        return "未知";
+        return pingkk::text("未知");
     }
 
     const int family = target.ip.find(':') == std::string::npos ? AF_INET : AF_INET6;
     SocketHandle socket = ::socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (socket == kInvalidSocket) {
-        return "未知";
+        return pingkk::text("未知");
     }
     if (::connect(socket, reinterpret_cast<sockaddr*>(&remote), remoteLength) != 0) {
         closeSocket(socket);
-        return "未知";
+        return pingkk::text("未知");
     }
 
     sockaddr_storage local;
@@ -306,7 +323,7 @@ std::string localAddressFor(const ResolvedTarget& target) {
     std::memset(&local, 0, sizeof(local));
     if (getsockname(socket, reinterpret_cast<sockaddr*>(&local), &localLength) != 0) {
         closeSocket(socket);
-        return "未知";
+        return pingkk::text("未知");
     }
     closeSocket(socket);
 
@@ -319,31 +336,124 @@ std::string localAddressFor(const ResolvedTarget& target) {
                        0,
                        NI_NUMERICHOST) == 0
                ? buffer
-               : "未知";
+               : pingkk::text("未知");
 }
 
-std::string primaryLocalAddress() {
+std::string primaryLocalAddress(IpVersion version) {
     ResolvedTarget routeTarget;
-    routeTarget.input = "223.5.5.5";
-    routeTarget.host = "223.5.5.5";
-    routeTarget.ip = "223.5.5.5";
+    routeTarget.ip = version == IpVersion::V6 ? "2400:3200::1" : "223.5.5.5";
+    routeTarget.input = routeTarget.ip;
+    routeTarget.host = routeTarget.ip;
     return localAddressFor(routeTarget);
+}
+
+std::string subnetMaskFor(const std::string& localAddress) {
+    if (localAddress.find(':') != std::string::npos) return pingkk::text("未知");
+    return networkPrefixFor(localAddress);
+}
+
+std::string networkPrefixFor(const std::string& localAddress) {
+    const bool ipv6 = localAddress.find(':') != std::string::npos;
+    const int family = ipv6 ? AF_INET6 : AF_INET;
+    unsigned char local[16] = {0};
+    const std::string numeric = localAddress.substr(0, localAddress.find('%'));
+    if (inet_pton(family, numeric.c_str(), local) != 1) return pingkk::text("未知");
+#ifdef _WIN32
+    SocketRuntime runtime;
+    if (!runtime.ready()) return pingkk::text("未知");
+    ULONG size = 16384;
+    std::vector<unsigned char> buffer(size);
+    const ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                        GAA_FLAG_SKIP_DNS_SERVER;
+    ULONG status = GetAdaptersAddresses(family, flags, NULL,
+        reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]), &size);
+    if (status == ERROR_BUFFER_OVERFLOW) {
+        buffer.resize(size);
+        status = GetAdaptersAddresses(family, flags, NULL,
+            reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]), &size);
+    }
+    if (status != NO_ERROR) return pingkk::text("未知");
+    for (IP_ADAPTER_ADDRESSES* adapter =
+             reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]);
+         adapter != NULL; adapter = adapter->Next) {
+        for (IP_ADAPTER_UNICAST_ADDRESS* entry = adapter->FirstUnicastAddress;
+             entry != NULL; entry = entry->Next) {
+            const sockaddr* address = entry->Address.lpSockaddr;
+            if (address == NULL || address->sa_family != family) continue;
+            const void* bytes = ipv6
+                ? static_cast<const void*>(&reinterpret_cast<const sockaddr_in6*>(address)->sin6_addr)
+                : static_cast<const void*>(&reinterpret_cast<const sockaddr_in*>(address)->sin_addr);
+            if (std::memcmp(bytes, local, ipv6 ? 16 : 4) != 0) continue;
+            const unsigned int prefix = entry->OnLinkPrefixLength;
+            if (prefix > (ipv6 ? 128u : 32u)) continue;
+            if (ipv6) return "/" + std::to_string(prefix);
+            in_addr mask;
+            mask.s_addr = htonl(prefix == 0 ? 0 : 0xffffffffu << (32 - prefix));
+            char text[INET_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET, &mask, text, sizeof(text)) != NULL) return text;
+        }
+    }
+#else
+    ifaddrs* interfaces = NULL;
+    if (getifaddrs(&interfaces) != 0) return pingkk::text("未知");
+    std::string mask = pingkk::text("未知");
+    for (const ifaddrs* entry = interfaces; entry != NULL; entry = entry->ifa_next) {
+        if (entry->ifa_addr == NULL || entry->ifa_netmask == NULL ||
+            entry->ifa_addr->sa_family != family) continue;
+        const void* bytes = ipv6
+            ? static_cast<const void*>(&reinterpret_cast<const sockaddr_in6*>(entry->ifa_addr)->sin6_addr)
+            : static_cast<const void*>(&reinterpret_cast<const sockaddr_in*>(entry->ifa_addr)->sin_addr);
+        if (std::memcmp(bytes, local, ipv6 ? 16 : 4) != 0) continue;
+        if (ipv6) {
+            const unsigned char* netmask = reinterpret_cast<const sockaddr_in6*>(entry->ifa_netmask)->sin6_addr.s6_addr;
+            unsigned int prefix = 0;
+            for (int index = 0; index < 16; ++index) {
+                for (unsigned char bit = 0x80; bit != 0; bit >>= 1) {
+                    if (netmask[index] & bit) ++prefix;
+                }
+            }
+            mask = "/" + std::to_string(prefix);
+        } else {
+            const sockaddr_in* netmask = reinterpret_cast<const sockaddr_in*>(entry->ifa_netmask);
+            char text[INET_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET, &netmask->sin_addr, text, sizeof(text)) != NULL) mask = text;
+        }
+        break;
+    }
+    freeifaddrs(interfaces);
+    return mask;
+#endif
+    return pingkk::text("未知");
 }
 
 std::vector<std::string> currentDnsServers() {
     std::vector<std::string> servers;
 #ifdef _WIN32
-    ULONG size = 0;
-    if (GetNetworkParams(NULL, &size) != ERROR_BUFFER_OVERFLOW || size == 0) {
-        return servers;
+    SocketRuntime runtime;
+    if (!runtime.ready()) return servers;
+    ULONG size = 16384;
+    std::vector<unsigned char> buffer(size);
+    const ULONG flags = GAA_FLAG_SKIP_UNICAST | GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST;
+    ULONG status = GetAdaptersAddresses(AF_UNSPEC, flags, NULL,
+        reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]), &size);
+    if (status == ERROR_BUFFER_OVERFLOW) {
+        buffer.resize(size);
+        status = GetAdaptersAddresses(AF_UNSPEC, flags, NULL,
+            reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]), &size);
     }
-    std::vector<unsigned char> buffer(size, 0);
-    FIXED_INFO* information = reinterpret_cast<FIXED_INFO*>(&buffer[0]);
-    if (GetNetworkParams(information, &size) != ERROR_SUCCESS) return servers;
-    for (IP_ADDR_STRING* entry = &information->DnsServerList;
-         entry != NULL;
-         entry = entry->Next) {
-        appendUnique(servers, entry->IpAddress.String);
+    if (status != NO_ERROR) return servers;
+    for (IP_ADAPTER_ADDRESSES* adapter = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(&buffer[0]);
+         adapter != NULL; adapter = adapter->Next) {
+        if (adapter->OperStatus != IfOperStatusUp) continue;
+        for (IP_ADAPTER_DNS_SERVER_ADDRESS* entry = adapter->FirstDnsServerAddress;
+             entry != NULL; entry = entry->Next) {
+            if (entry->Address.lpSockaddr == NULL) continue;
+            char text[NI_MAXHOST] = {0};
+            if (getnameinfo(entry->Address.lpSockaddr, entry->Address.iSockaddrLength,
+                            text, sizeof(text), NULL, 0, NI_NUMERICHOST) == 0) {
+                appendUnique(servers, text);
+            }
+        }
     }
 #elif defined(__APPLE__)
     SCDynamicStoreRef store = SCDynamicStoreCreate(
@@ -384,14 +494,14 @@ ProbeResult probeTcp(const ResolvedTarget& target,
     sockaddr_storage address;
     AddressLength addressLength = 0;
     if (!runtime.ready() || !makeAddress(target, port, address, addressLength)) {
-        result.message = "无法创建目标地址";
+        result.message = pingkk::text("无法创建目标地址");
         return result;
     }
 
     const int family = target.ip.find(':') == std::string::npos ? AF_INET : AF_INET6;
     SocketHandle socket = ::socket(family, SOCK_STREAM, IPPROTO_TCP);
     if (socket == kInvalidSocket || !setNonBlocking(socket, true)) {
-        result.message = "无法创建 TCP 连接";
+        result.message = pingkk::text("无法创建 TCP 连接");
         if (socket != kInvalidSocket) closeSocket(socket);
         return result;
     }
@@ -426,14 +536,14 @@ ProbeResult probeTcp(const ResolvedTarget& target,
                 result.message = errorText(socketError());
             } else {
                 result.reachable = pendingError == 0;
-                result.message = result.reachable ? "连接成功" : errorText(pendingError);
+                result.message = result.reachable ? pingkk::text("连接成功") : errorText(pendingError);
             }
         } else {
-            result.message = status == 0 ? "连接超时" : errorText(socketError());
+            result.message = status == 0 ? pingkk::text("连接超时") : errorText(socketError());
         }
     } else {
         result.reachable = true;
-        result.message = "连接成功";
+        result.message = pingkk::text("连接成功");
     }
 
     closeSocket(socket);
@@ -450,14 +560,14 @@ ProbeResult probeUdp(const ResolvedTarget& target,
     sockaddr_storage address;
     AddressLength addressLength = 0;
     if (!runtime.ready() || !makeAddress(target, port, address, addressLength)) {
-        result.message = "无法创建目标地址";
+        result.message = pingkk::text("无法创建目标地址");
         return result;
     }
 
     const int family = target.ip.find(':') == std::string::npos ? AF_INET : AF_INET6;
     SocketHandle socket = ::socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (socket == kInvalidSocket) {
-        result.message = "无法创建 UDP 探测";
+        result.message = pingkk::text("无法创建 UDP 探测");
         return result;
     }
 
@@ -489,13 +599,13 @@ ProbeResult probeUdp(const ResolvedTarget& target,
         if (received >= 0) {
             result.reachable = true;
             result.definitive = true;
-            result.message = "收到 UDP 响应";
+            result.message = pingkk::text("收到 UDP 响应");
         } else {
             result.definitive = true;
             result.message = errorText(socketError());
         }
     } else if (status == 0) {
-        result.message = "探测已发送，未收到响应";
+        result.message = pingkk::text("探测已发送，未收到响应");
     } else {
         result.definitive = true;
         result.message = errorText(socketError());

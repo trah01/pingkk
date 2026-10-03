@@ -27,6 +27,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -104,8 +105,14 @@ enum LogTone {
     LogToneSection
 };
 
+QString normalizedLogLine(const QString& text) {
+    QString line = text.trimmed();
+    if (line.startsWith("[IPv4] ") || line.startsWith("[IPv6] ")) line = line.mid(7);
+    return line;
+}
+
 LogTone logToneForLine(const QString& text) {
-    const QString line = text.trimmed();
+    const QString line = normalizedLogLine(text);
     if (line.isEmpty()) return LogToneDefault;
 
     const bool reportedFailure = line.contains(QString::fromUtf8("失败")) &&
@@ -116,6 +123,9 @@ LogTone logToneForLine(const QString& text) {
                               !line.contains(QString::fromUtf8("丢失：0"));
     const bool reportedUnknown = line.contains(QString::fromUtf8("状态未知")) &&
                                  !line.contains(QString::fromUtf8("状态未知：0"));
+    static const QRegularExpression englishFailureCount(
+        "(?:failed|unreachable|lost): [1-9][0-9]*\\b|\\b[1-9][0-9]* failed\\b");
+    static const QRegularExpression englishUnknownCount("unknown: [1-9][0-9]*\\b");
     const bool failed = line.contains(QString::fromUtf8("[失败]")) ||
                         reportedFailure || reportedUnreachable || reportedLoss ||
                         line.contains(QString::fromUtf8("协议不通")) ||
@@ -124,7 +134,16 @@ LogTone logToneForLine(const QString& text) {
                         line.startsWith(QString::fromUtf8("无法")) ||
                         line.contains(QString::fromUtf8("异常")) ||
                         line.contains(QString::fromUtf8("尚未响应")) ||
-                        line.contains(" failed", Qt::CaseInsensitive) ||
+                        line.contains("[Failed]") ||
+                        line.contains("protocol unreachable") ||
+                        line.contains("timed out", Qt::CaseInsensitive) ||
+                        line.startsWith("Unable to ") ||
+                        line.startsWith("Maximum hop count reached") ||
+                        line.contains("ended with an error") ||
+                        line.contains("Problems detected") ||
+                        englishFailureCount.match(line).hasMatch() ||
+                        (line.contains(" failed", Qt::CaseInsensitive) &&
+                         !line.contains("failed: 0")) ||
                         line.contains(" error", Qt::CaseInsensitive);
     const bool succeeded = line.contains(QString::fromUtf8("[正常]")) ||
                                line.contains(QString::fromUtf8("协议连通")) ||
@@ -138,6 +157,16 @@ LogTone logToneForLine(const QString& text) {
                                (line.contains(QString::fromUtf8("不通：0")) &&
                                 line.contains(QString::fromUtf8("状态未知：0"))) ||
                                line.contains(QString::fromUtf8("失败：0")) ||
+                               line.contains("[OK]") ||
+                               line.contains("protocol reachable") ||
+                               line.startsWith("Reply from ") ||
+                               line.contains("Basic network checks passed") ||
+                               line.contains("Traceroute complete") ||
+                               line.contains("All DNS resolvers returned consistent results") ||
+                               line.contains("lost: 0") ||
+                               (line.contains("unreachable: 0") && line.contains("unknown: 0")) ||
+                               line.contains("failed: 0") ||
+                               (!line.isEmpty() && line.at(0).isDigit() && line.contains(" ms")) ||
                                (!line.isEmpty() && line.at(0).isDigit() &&
                                 line.contains(QString::fromUtf8("毫秒"))) ||
                                (line.contains(" all ", Qt::CaseInsensitive) &&
@@ -149,11 +178,19 @@ LogTone logToneForLine(const QString& text) {
                              line.contains(QString::fromUtf8("不完全一致")) ||
                              line.contains(QString::fromUtf8("日志较长")) ||
                              line.contains("log was long", Qt::CaseInsensitive) ||
+                             line.contains("[Skipped]") ||
+                             line.contains("protocol unknown") ||
+                             englishUnknownCount.match(line).hasMatch() ||
+                             line.contains("Test stopped") ||
+                             line.contains("DNS results differ") ||
+                             line.contains("returned different IP addresses") ||
                              line.contains('*') ||
                              line.contains(QString::fromUtf8("部分 DNS"));
     const bool section = (line.startsWith('[') && line.contains("/5]")) ||
                          line == QString::fromUtf8("[高级信息]") ||
-                         line.startsWith(QString::fromUtf8("[高级统计]"));
+                         line.startsWith(QString::fromUtf8("[高级统计]")) ||
+                         line == "[Advanced details]" ||
+                         line.startsWith("[Advanced statistics]");
 
     if (failed) return LogToneFailure;
     if (succeeded) return LogToneSuccess;
@@ -363,11 +400,16 @@ void MainWindow::buildInterface() {
     languageCombo_->addItem("English");
     languageCombo_->setFixedWidth(110);
     configureComboBox(languageCombo_);
+    ipVersionCombo_ = new FixedPopupComboBox;
+    ipVersionCombo_->addItems(QStringList() << "IPv4" << "IPv6" << "IPv4 + IPv6");
+    ipVersionCombo_->setFixedWidth(140);
+    configureComboBox(ipVersionCombo_);
     installButton_ = new QPushButton;
     installButton_->setObjectName("quietButton");
     topBar->addWidget(currentIpPanel);
     topBar->addStretch();
     topBar->addWidget(installButton_);
+    topBar->addWidget(ipVersionCombo_);
     topBar->addWidget(languageCombo_);
 
     QFrame* controlPanel = new QFrame;
@@ -389,7 +431,7 @@ void MainWindow::buildInterface() {
     protocolCombo_->addItems(QStringList()
                              << "TCP" << "UDP" << "TCP + UDP" << "Ping"
                              << QString::fromUtf8("路由追踪")
-                             << QString::fromUtf8("一键网络体检")
+                             << QString::fromUtf8("一键网络检查")
                              << QString::fromUtf8("DNS 对比诊断"));
     protocolCombo_->setFixedWidth(192);
     configureComboBox(protocolCombo_);
@@ -545,6 +587,7 @@ void MainWindow::buildInterface() {
 }
 
 void MainWindow::updateTexts() {
+    ipVersionCombo_->setAccessibleName(english_ ? "IP version" : QString::fromUtf8("IP 版本"));
     setWindowTitle(english_ ? "pingkk - Network Test" : QString::fromUtf8("ping看看 - 网络测试"));
     currentIpTitle_->setText(english_ ? "Local IP" : QString::fromUtf8("当前 IP"));
     targetTitle_->setText(english_ ? "Target" : QString::fromUtf8("目标地址"));
@@ -556,17 +599,17 @@ void MainWindow::updateTexts() {
                                    : QString::fromUtf8("多个端口使用逗号分隔，例如 80, 443, 8080。"));
     protocolTitle_->setText(english_ ? "Function" : QString::fromUtf8("功能选择"));
     timeoutTitle_->setText(english_ ? "Timeout" : QString::fromUtf8("超时时间"));
-    protocolCombo_->setItemText(4, english_ ? "Route trace" : QString::fromUtf8("路由追踪"));
-    protocolCombo_->setItemText(5, english_ ? "Network checkup" : QString::fromUtf8("一键网络体检"));
+    protocolCombo_->setItemText(4, english_ ? "Traceroute" : QString::fromUtf8("路由追踪"));
+    protocolCombo_->setItemText(5, english_ ? "Network check" : QString::fromUtf8("一键网络检查"));
     protocolCombo_->setItemText(6, english_ ? "DNS comparison" : QString::fromUtf8("DNS 对比诊断"));
     const int functionIndex = protocolCombo_->currentIndex();
     singleButton_->setText(
         functionIndex == 5
-            ? (english_ ? "Start checkup" : QString::fromUtf8("开始体检"))
+            ? (english_ ? "Start check" : QString::fromUtf8("开始检查"))
             : functionIndex == 6
                   ? (english_ ? "Compare DNS" : QString::fromUtf8("开始对比"))
                   : (english_ ? "Test once" : QString::fromUtf8("单次测试")));
-    continuousButton_->setText(english_ ? "Continuous" : QString::fromUtf8("持续测试"));
+    continuousButton_->setText(english_ ? "Test continuously" : QString::fromUtf8("持续测试"));
     stopButton_->setText(english_ ? "Stop" : QString::fromUtf8("停止测试"));
     installButton_->setText(english_ ? "Install CLI" : QString::fromUtf8("安装命令行工具"));
     outputTitle_->setText(english_ ? "Output" : QString::fromUtf8("日志输出"));
@@ -627,6 +670,9 @@ void MainWindow::startTest(bool continuous) {
     }
 
     QStringList arguments;
+    arguments << "--lang" << (english_ ? "en" : "zh");
+    if (ipVersionCombo_->currentIndex() == 1) arguments << "-v6";
+    if (ipVersionCombo_->currentIndex() == 2) arguments << "-v46";
     if (functionIndex == 5) {
         arguments << "--checkup";
     } else if (functionIndex == 6) {
@@ -705,24 +751,28 @@ void MainWindow::appendOutputLine(const QString& text) {
 
 void MainWindow::handleOutputLine(const QString& rawLine) {
     appendOutputLine(rawLine);
-    const QString line = rawLine.trimmed();
-    const QString marker = QString::fromUtf8("当前 IP：");
+    const QString line = normalizedLogLine(rawLine);
+    const QString marker = line.startsWith("Local IP:") ? QString("Local IP:")
+                           : line.startsWith("IP:") ? QString("IP:")
+                           : line.startsWith(QString::fromUtf8("IP："))
+                                 ? QString::fromUtf8("IP：") : QString::fromUtf8("当前 IP：");
     if (line.startsWith(marker)) {
         const QString address = line.mid(marker.size()).trimmed();
-        if (!address.isEmpty() && address != QString::fromUtf8("未知")) {
+        if (!address.isEmpty() && address != QString::fromUtf8("未知") && address != "Unknown") {
             currentIpValue_->setText(address);
         }
-    } else if (line.contains(QString::fromUtf8("端口测试"))) {
-        if (line.contains(QString::fromUtf8("状态未知"))) {
+    } else if (line.contains(QString::fromUtf8("端口测试")) ||
+               (line.startsWith("Testing ") && line.contains(" connectivity........"))) {
+        if (line.contains(QString::fromUtf8("状态未知")) || line.contains("protocol unknown")) {
             ++unknownCount_;
-        } else if (line.contains(QString::fromUtf8("协议连通"))) {
+        } else if (line.contains(QString::fromUtf8("协议连通")) || line.contains("protocol reachable")) {
             ++reachableCount_;
-        } else if (line.contains(QString::fromUtf8("协议不通"))) {
+        } else if (line.contains(QString::fromUtf8("协议不通")) || line.contains("protocol unreachable")) {
             ++unreachableCount_;
         }
-    } else if (line.startsWith(QString::fromUtf8("来自 "))) {
+    } else if (line.startsWith(QString::fromUtf8("来自 ")) || line.startsWith("Reply from ")) {
         ++reachableCount_;
-    } else if (line == QString::fromUtf8("请求超时")) {
+    } else if (line == QString::fromUtf8("请求超时") || line == "Request timed out") {
         ++unreachableCount_;
     }
 }
@@ -741,11 +791,14 @@ void MainWindow::processFinished(int exitCode) {
         summary = english_ ? "Test ended with an error."
                            : QString::fromUtf8("测试异常结束，请检查上方信息。");
     } else if (protocolCombo_->currentIndex() >= 5) {
-        // 一键体检和 DNS 对比已经由命令行输出完整结论，不重复追加通用总结。
+        // 一键检查和 DNS 对比已经由命令行输出完整结论，不重复追加通用总结。
         summary.clear();
     } else {
         const int total = reachableCount_ + unreachableCount_ + unknownCount_;
-        if (total > 0 && reachableCount_ == total) {
+        if (exitCode == 1 && unreachableCount_ == 0 && unknownCount_ == 0) {
+            summary = english_ ? "Some checks could not be completed. Review the errors above."
+                               : QString::fromUtf8("部分测试未完成，请检查上方错误信息。");
+        } else if (total > 0 && reachableCount_ == total) {
             summary = english_ ? QString("Test complete: all %1 checks passed.").arg(total)
                                : QString::fromUtf8("测试完成：%1 项全部连通。").arg(total);
         } else if (total > 0) {
@@ -801,7 +854,7 @@ void MainWindow::updateProtocolFields(int index) {
     continuousButton_->setVisible(idle && !checkup && !dnsComparison);
     singleButton_->setText(
         checkup
-            ? (english_ ? "Start checkup" : QString::fromUtf8("开始体检"))
+            ? (english_ ? "Start check" : QString::fromUtf8("开始检查"))
             : dnsComparison
                   ? (english_ ? "Compare DNS" : QString::fromUtf8("开始对比"))
                   : (english_ ? "Test once" : QString::fromUtf8("单次测试")));
@@ -813,6 +866,8 @@ void MainWindow::setRunning(bool running) {
     timeoutSpin_->setEnabled(!running);
     protocolCombo_->setEnabled(!running);
     advancedCheckBox_->setEnabled(!running);
+    languageCombo_->setEnabled(!running);
+    ipVersionCombo_->setEnabled(!running);
     singleButton_->setEnabled(!running);
     continuousButton_->setVisible(!running);
     stopButton_->setVisible(running);

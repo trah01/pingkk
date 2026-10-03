@@ -8,7 +8,7 @@
 
 - TCP、UDP 端口测试
 - Ping 和路由追踪
-- 一键网络体检：检查本机出口、默认网关、DNS、代理和 HTTPS 直连
+- 一键网络检查：检查本机出口、默认网关、DNS、代理和 HTTPS 直连
 - DNS 对比诊断：对比系统 DNS、当前 DNS、阿里 DNS 和腾讯 DNS
 - 持续测试与自定义超时时间
 - 可选高级输出：显示单包大小、丢包率、时延范围、波动及各检测功能的汇总统计
@@ -71,7 +71,7 @@ irm https://he.sb/pingkk.ps1 | iex
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。脚本中的安装提示使用英文，以兼容旧版 PowerShell 的编码处理。
 
-两个脚本均直接从 `https://he.sb/pingkk/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的版本。安装后运行 `pingkk --help`。
+两个脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
 
 macOS / Linux 也可安装到已有的用户目录，例如：
 
@@ -111,6 +111,10 @@ xattr -dr com.apple.quarantine pingkk.app
 
 ## 命令行用法
 
+图形界面右上角选择 `English` 后，后续测试的日志、诊断信息及报告使用英文。命令行默认使用中文，可添加 `--lang en` 切换英文，例如 `pingkk example.com 443 --lang en` 或 `pingkk --help --lang en`；使用 `--lang zh` 切回中文。
+
+运行 `pingkk gui` 打开已安装的图形界面；未找到时会提示前往 GitHub Releases 或 `https://he.sb/pingkk/` 下载图形界面包或安装包。
+
 ```bash
 # 测试 TCP 端口
 pingkk example.com 443 tcp
@@ -127,25 +131,37 @@ pingkk example.com 80,443 tcp
 # 持续测试
 pingkk -t example.com 443 tcp
 
-# Ping 和路由追踪
-pingkk example.com
-pingkk example.com -r
+# 默认使用 IPv4；使用 IPv6 或同时测试两种协议
+pingkk example.com 443 -v6
+pingkk example.com 443 -v46
+pingkk example.com -v6
+pingkk example.com --route -v6
+pingkk example.com --dns -v46
+pingkk -jc -v46
 
-# 一键网络体检与 DNS 对比
+# Ping（默认 4 次）和路由追踪
+pingkk example.com
+pingkk example.com --route
+
+# 一键网络检查与 DNS 对比
+pingkk -jc
 pingkk --checkup
 pingkk --dns example.com
+pingkk example.com --dns
 
 # 输出更详细的诊断信息
 pingkk --advanced example.com 443 tcp
 pingkk -a --dns example.com
 ```
 
-端口类型可使用 `tcp`、`udp` 或 `all`。选项 `-t`、`-r`/`--route`、`-a`/`--advanced` 和 `--timeout`/`-w` 可放在命令中的任意位置。高级输出默认关闭，只有指定 `-a` 或 `--advanced` 时才会显示单包大小、丢包率、时延范围、波动及对应功能的汇总统计。
+端口类型可使用 `tcp`、`udp` 或 `all`。地址、端口和协议支持调整顺序，例如 `pingkk 443 example.com tcp`；纯数字地址存在歧义时，第一个参数作为地址。选项 `-t`、`-r`/`--route`、`-a`/`--advanced`、`-jc`/`--checkup`、`--timeout`/`-w`、`--lang`、`-v6` 和 `-v46` 可放在命令中的任意位置；`--timeout` 和 `--lang` 的值需紧跟对应选项。高级输出默认关闭，只有指定 `-a` 或 `--advanced` 时才会显示单包大小、丢包率、时延范围、波动及对应功能的汇总统计。
 
 ```bash
 # 自定义超时时间（毫秒）
 pingkk --timeout 1000 example.com 443 tcp
 ```
+
+默认只测试 IPv4；`-v6` 只测试 IPv6，`-v46` 分别测试 IPv4 和 IPv6，适用于端口、Ping、路由追踪、DNS 对比和网络检查。持续测试时轮流探测两种协议；某一种解析或连接失败会单独报告，不自动切换到另一种。图形界面可在顶部选择 `IPv4`、`IPv6` 或 `IPv4 + IPv6`。IPv6 网络检查显示前缀长度，不使用 IPv4 子网掩码。
 
 UDP 端口只有在收到目标响应时才会显示为连通；没有响应时显示“状态未知”。
 

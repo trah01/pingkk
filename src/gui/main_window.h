@@ -59,6 +59,7 @@ private:
     QSpinBox* timeoutSpin_;
     QComboBox* protocolCombo_;
     QComboBox* languageCombo_;
+    QComboBox* ipVersionCombo_;
     QCheckBox* advancedCheckBox_;
     QPushButton* singleButton_;
     QPushButton* continuousButton_;
