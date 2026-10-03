@@ -1,4 +1,5 @@
 #include "arguments.h"
+#include "update.h"
 #include "pingkk/language.h"
 #include "pingkk/core.h"
 #include "pingkk/diagnostics.h"
@@ -88,6 +89,8 @@ void printHelp() {
         << pingkk::text("    -v46                            同时测试 IPv4 和 IPv6\n")
         << pingkk::text("    --lang <zh|en>                  设置输出语言，默认 zh\n")
         << pingkk::text("  pingkk gui                        打开图形界面\n")
+        << pingkk::text("  pingkk update                     升级命令行程序\n")
+        << pingkk::text("  pingkk --version                  显示当前版本\n")
         << pingkk::text("  pingkk -h | --help                 显示本教程\n\n")
         << pingkk::text("额外附加参数可以放在命令中的任意位置；--timeout 和 --lang 的值需紧跟对应选项。\n")
         << pingkk::text("一次只能测试一个地址；多个端口使用英文逗号分隔。\n")
@@ -709,6 +712,17 @@ int main(int argc, char* argv[]) {
         std::find(arguments.begin(), arguments.end(), "--help") != arguments.end()) {
         printHelp();
         return 0;
+    }
+    if (arguments.size() == 1 && arguments[0] == "--version") {
+        std::cout << PINGKK_VERSION << "\n";
+        return 0;
+    }
+    if (arguments[0] == "update") {
+        if (arguments.size() != 1) {
+            std::cerr << pingkk::text("update 不需要其他参数，仅支持 --lang zh 或 --lang en。\n");
+            return 2;
+        }
+        return pingkk::cli::updateCommand();
     }
     if (arguments[0] == "gui") {
         return launchGui(argv[0]);

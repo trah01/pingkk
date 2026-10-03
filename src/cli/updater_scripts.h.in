@@ -1,0 +1,7 @@
+#ifndef PINGKK_UPDATER_SCRIPTS_H
+#define PINGKK_UPDATER_SCRIPTS_H
+namespace pingkk { namespace cli {
+static const char kUnixUpdater[] = R"PKSH(@PINGKK_UNIX_UPDATER@)PKSH";
+static const char kWindowsUpdater[] = R"PKPS(@PINGKK_WINDOWS_UPDATER@)PKPS";
+} }
+#endif

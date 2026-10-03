@@ -18,6 +18,13 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk/version.h
     @ONLY
 )
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/cli/update_unix.sh" PINGKK_UNIX_UPDATER)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/cli/update_windows.ps1" PINGKK_WINDOWS_UPDATER)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    src/cli/update_unix.sh src/cli/update_windows.ps1)
+configure_file(src/cli/updater_scripts.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk/updater_scripts.h @ONLY)
 configure_file(
     src/windows/version.rc.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk-version.rc
@@ -65,7 +72,7 @@ if(APPLE)
     )
 endif()
 
-add_executable(pingkk src/cli/main.cpp src/cli/arguments.cpp)
+add_executable(pingkk src/cli/main.cpp src/cli/arguments.cpp src/cli/update.cpp)
 target_link_libraries(pingkk PRIVATE pingkk_core)
 if(APPLE)
     find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)

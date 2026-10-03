@@ -28,6 +28,8 @@
 
 前往 [Releases](https://github.com/trah01/pingkk/releases) 下载适合你系统的版本。
 
+仅使用命令行时，可直接[一键安装 CLI](#一键安装-cli)，自动选择系统和处理器架构。
+
 **Windows 10 1809 及以上推荐下载 `pingkk-windows-x64-portable.exe`。** Windows 7、Server 2008 R2 和 Server 2016 等旧系统使用 `pingkk-windows-x64-legacy-portable.exe`；ARM 设备使用 `pingkk-windows-arm64-portable.exe`。单文件版双击即可使用，运行时会自动释放依赖到临时目录，正常关闭后清理。
 
 按系统和处理器架构选择下载包，具体文件以对应 Release 的附件为准：
@@ -53,7 +55,7 @@ Windows 不再提供 x86 / XP 版本。
 
 ### 一键安装 CLI
 
-将安装脚本和 CLI 包部署到 `he.sb` 后，可使用以下 HTTPS 命令安装网站提供的 CLI 版本。
+在终端执行对应命令，安装最新版本的命令行工具：
 
 macOS / Linux：
 
@@ -69,7 +71,7 @@ Windows（在 PowerShell 5.1 或更高版本中执行）：
 irm https://he.sb/pingkk.ps1 | iex
 ```
 
-安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。脚本中的安装提示使用英文，以兼容旧版 PowerShell 的编码处理。
+安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。
 
 两个脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
 
@@ -114,6 +116,10 @@ xattr -dr com.apple.quarantine pingkk.app
 图形界面右上角选择 `English` 后，后续测试的日志、诊断信息及报告使用英文。命令行默认使用中文，可添加 `--lang en` 切换英文，例如 `pingkk example.com 443 --lang en` 或 `pingkk --help --lang en`；使用 `--lang zh` 切回中文。
 
 运行 `pingkk gui` 打开已安装的图形界面；未找到时会提示前往 GitHub Releases 或 `https://he.sb/pingkk/` 下载图形界面包或安装包。
+
+运行 `pingkk update` 升级当前 CLI。默认检查 GitHub 最新正式 Release，连接探测（含重定向）的总超时为 1000ms；超时、连接失败或附件下载失败时，自动切换到 `https://he.sb/pingkk/latest/`。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
+
+更新会替换当前 CLI 的实际文件路径，macOS / Linux 的系统目录可能需要 `sudo`，Windows 的系统目录需要管理员权限。macOS 应用包内的 CLI 需通过图形界面包整体更新，避免破坏应用签名。macOS / Linux 需要系统已有的 `curl`、解压及 SHA256 工具；Windows 需要 PowerShell 5.1 或更高版本。
 
 ```bash
 # 测试 TCP 端口

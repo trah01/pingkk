@@ -12,9 +12,17 @@ void setEnglish(bool enabled) {
     english = enabled;
 }
 
+bool isEnglish() {
+    return english;
+}
+
 const char* text(const char* chinese) {
     if (!english) return chinese;
     static const std::map<std::string, const char*> translations = {
+        {"无法准备更新程序，请检查临时目录和系统权限。\n", "Unable to prepare the updater. Check the temporary directory and system permissions.\n"},
+        {"  pingkk update                     升级命令行程序\n", "  pingkk update                        Update the command-line program\n"},
+        {"  pingkk --version                  显示当前版本\n", "  pingkk --version                     Show the current version\n"},
+        {"update 不需要其他参数，仅支持 --lang zh 或 --lang en。\n", "update takes no additional arguments except --lang zh or --lang en.\n"},
         {"未找到图形界面，请下载适合当前系统的图形界面包或安装包：\n", "The graphical interface was not found. Download the GUI package or installer for your system:\n"},
         {"2. 网站下载：https://he.sb/pingkk/\n", "2. Website: https://he.sb/pingkk/\n"},
         {"图形界面启动失败，请检查安装文件和运行环境。\n", "The graphical interface could not be started. Check the installation files and runtime environment.\n"},
