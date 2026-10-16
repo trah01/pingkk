@@ -28,6 +28,7 @@ private slots:
     void changeLanguage(int index);
     void updateProtocolFields(int index);
     void installCommandLineTool();
+    void showSettings();
     void copyReportImage();
     void clearOutput();
 
@@ -64,7 +65,7 @@ private:
     QPushButton* singleButton_;
     QPushButton* continuousButton_;
     QPushButton* stopButton_;
-    QPushButton* installButton_;
+    QPushButton* settingsButton_;
     QPushButton* exportButton_;
     QPushButton* clearButton_;
     QPlainTextEdit* outputEdit_;

@@ -119,6 +119,8 @@ xattr -dr com.apple.quarantine pingkk.app
 
 运行 `pingkk update` 升级当前 CLI。默认检查 GitHub 最新正式 Release，连接探测（含重定向）的总超时为 1000ms；超时、连接失败或附件下载失败时，自动切换到 `https://he.sb/pingkk/latest/`。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
 
+命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。命令行确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致；图形界面在“设置”中检查更新，发现新版本后提供对应来源的下载入口。
+
 更新会替换当前 CLI 的实际文件路径，macOS / Linux 的系统目录可能需要 `sudo`，Windows 的系统目录需要管理员权限。macOS 应用包内的 CLI 需通过图形界面包整体更新，避免破坏应用签名。macOS / Linux 需要系统已有的 `curl`、解压及 SHA256 工具；Windows 需要 PowerShell 5.1 或更高版本。
 
 ```bash
@@ -137,13 +139,12 @@ pingkk example.com 80,443 tcp
 # 持续测试
 pingkk -t example.com 443 tcp
 
-# 默认使用 IPv4；使用 IPv6 或同时测试两种协议
+# 默认使用 IPv4；使用 -v6 单独测试 IPv6
 pingkk example.com 443 -v6
-pingkk example.com 443 -v46
 pingkk example.com -v6
 pingkk example.com --route -v6
-pingkk example.com --dns -v46
-pingkk -jc -v46
+pingkk example.com --dns -v6
+pingkk -jc -v6
 
 # Ping（默认 4 次）和路由追踪
 pingkk example.com
@@ -160,14 +161,14 @@ pingkk --advanced example.com 443 tcp
 pingkk -a --dns example.com
 ```
 
-端口类型可使用 `tcp`、`udp` 或 `all`。地址、端口和协议支持调整顺序，例如 `pingkk 443 example.com tcp`；纯数字地址存在歧义时，第一个参数作为地址。选项 `-t`、`-r`/`--route`、`-a`/`--advanced`、`-jc`/`--checkup`、`--timeout`/`-w`、`--lang`、`-v6` 和 `-v46` 可放在命令中的任意位置；`--timeout` 和 `--lang` 的值需紧跟对应选项。高级输出默认关闭，只有指定 `-a` 或 `--advanced` 时才会显示单包大小、丢包率、时延范围、波动及对应功能的汇总统计。
+端口类型可使用 `tcp`、`udp` 或 `all`。地址、端口和协议支持调整顺序，例如 `pingkk 443 example.com tcp`；纯数字地址存在歧义时，第一个参数作为地址。选项 `-t`、`-r`/`--route`、`-a`/`--advanced`、`-jc`/`--checkup`、`--timeout`/`-w`、`--lang`和 `-v6` 可放在命令中的任意位置；`--timeout` 和 `--lang` 的值需紧跟对应选项。高级输出默认关闭，只有指定 `-a` 或 `--advanced` 时才会显示单包大小、丢包率、时延范围、波动及对应功能的汇总统计。
 
 ```bash
 # 自定义超时时间（毫秒）
 pingkk --timeout 1000 example.com 443 tcp
 ```
 
-默认只测试 IPv4；`-v6` 只测试 IPv6，`-v46` 分别测试 IPv4 和 IPv6，适用于端口、Ping、路由追踪、DNS 对比和网络检查。持续测试时轮流探测两种协议；某一种解析或连接失败会单独报告，不自动切换到另一种。图形界面可在顶部选择 `IPv4`、`IPv6` 或 `IPv4 + IPv6`。IPv6 网络检查显示前缀长度，不使用 IPv4 子网掩码。
+默认只测试 IPv4；`-v6` 只测试 IPv6，适用于端口、Ping、路由追踪、DNS 对比和网络检查。图形界面可在顶部选择 `IPv4` 或 `IPv6`，每次只测试所选协议。IPv6 网络检查显示前缀长度，不使用 IPv4 子网掩码。
 
 UDP 端口只有在收到目标响应时才会显示为连通；没有响应时显示“状态未知”。
 

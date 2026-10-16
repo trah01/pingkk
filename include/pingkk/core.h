@@ -6,7 +6,7 @@
 
 namespace pingkk {
 
-enum class IpVersion { V4, V6, Both };
+enum class IpVersion { V4, V6 };
 
 enum class Protocol {
     Tcp,

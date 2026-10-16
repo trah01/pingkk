@@ -86,7 +86,6 @@ void printHelp() {
         << pingkk::text("    --timeout <毫秒>                设置超时时间，默认 1000\n")
         << pingkk::text("    -t                              持续测试\n")
         << pingkk::text("    -v6                             使用 IPv6，默认 IPv4\n")
-        << pingkk::text("    -v46                            同时测试 IPv4 和 IPv6\n")
         << pingkk::text("    --lang <zh|en>                  设置输出语言，默认 zh\n")
         << pingkk::text("  pingkk gui                        打开图形界面\n")
         << pingkk::text("  pingkk update                     升级命令行程序\n")
@@ -289,8 +288,7 @@ int printDnsComparison(const std::string& input,
 }
 
 int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version) {
-    const std::chrono::steady_clock::time_point checkupStart =
-        std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point checkupStart = std::chrono::steady_clock::now();
     std::cout << pingkk::text("开始一键网络检查……\n\n");
     if (advanced) {
         std::cout << pingkk::text("[高级信息]\n")
@@ -299,7 +297,6 @@ int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version
                   << pingkk::text("  单项超时：") << timeoutMilliseconds << pingkk::text(" 毫秒\n\n");
     }
     bool healthy = true;
-
     const std::string localAddress = pingkk::primaryLocalAddress(version);
     std::cout << pingkk::text("[1/5] 本机网络\n")
               << pingkk::text("  IP：") << localAddress << "\n"
@@ -326,16 +323,13 @@ int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version
     std::cout << pingkk::text("[4/5] 域名解析（baidu.com）\n");
     pingkk::ResolvedTarget checkTarget;
     std::string resolveError;
-    const std::chrono::steady_clock::time_point resolveStart =
-        std::chrono::steady_clock::now();
-    const bool resolved = pingkk::resolveTarget(
-        "baidu.com", checkTarget, resolveError, version);
+    const std::chrono::steady_clock::time_point resolveStart = std::chrono::steady_clock::now();
+    const bool resolved = pingkk::resolveTarget("baidu.com", checkTarget, resolveError, version);
     const long resolveElapsed = static_cast<long>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - resolveStart).count());
     if (!resolved) {
-        std::cout << pingkk::text("  [失败] 系统 DNS 无法解析 baidu.com：")
-                  << resolveError << "\n";
+        std::cout << pingkk::text("  [失败] 系统 DNS 无法解析 baidu.com：") << resolveError << "\n";
         healthy = false;
     } else {
         std::cout << pingkk::text("  [正常] 系统 DNS：") << resolveElapsed
@@ -344,10 +338,10 @@ int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version
 
     std::cout << pingkk::text("[5/5] HTTPS 直连（baidu.com）\n");
     if (resolved) {
-        const pingkk::ProbeResult probe = pingkk::probeTcp(
-            checkTarget, 443, timeoutMilliseconds);
+        const pingkk::ProbeResult probe = pingkk::probeTcp(checkTarget, 443, timeoutMilliseconds);
         std::cout << "  " << (probe.reachable ? pingkk::text("[正常] ") : pingkk::text("[失败] "))
-                  << (version == pingkk::IpVersion::V6 ? "[" + checkTarget.ip + "]" : checkTarget.ip) << ":443 " << probe.message
+                  << (version == pingkk::IpVersion::V6 ? "[" + checkTarget.ip + "]" : checkTarget.ip)
+                  << ":443 " << probe.message
                   << pingkk::text("，") << probe.elapsedMilliseconds << pingkk::text("毫秒\n");
         if (!probe.reachable) healthy = false;
     } else {
@@ -365,7 +359,6 @@ int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version
                   << pingkk::text("  DNS 解析耗时：") << resolveElapsed << pingkk::text(" 毫秒\n")
                   << pingkk::text("  总耗时：") << totalElapsed << pingkk::text(" 毫秒\n");
     }
-
     std::cout << pingkk::text("\n检查结论：")
               << (healthy ? pingkk::text("基础网络状态正常。") : pingkk::text("发现异常，请根据上方失败项目继续排查。"))
               << "\n";
@@ -402,28 +395,18 @@ const char* versionName(pingkk::IpVersion version) {
     return version == pingkk::IpVersion::V6 ? "IPv6" : "IPv4";
 }
 
-std::vector<pingkk::IpVersion> selectedVersions(pingkk::IpVersion version) {
-    if (version == pingkk::IpVersion::Both) {
-        return {pingkk::IpVersion::V4, pingkk::IpVersion::V6};
-    }
-    return {version};
-}
-
 std::vector<pingkk::ResolvedTarget> resolveSelectedTargets(
         const std::string& input, pingkk::IpVersion version, bool& complete) {
     std::vector<pingkk::ResolvedTarget> targets;
     complete = true;
-    const std::vector<pingkk::IpVersion> versions = selectedVersions(version);
-    for (std::size_t index = 0; index < versions.size(); ++index) {
-        pingkk::ResolvedTarget target;
-        std::string error;
-        if (pingkk::resolveTarget(input, target, error, versions[index])) {
-            targets.push_back(target);
-        } else {
-            complete = false;
-            std::cerr << "[" << versionName(versions[index]) << "] "
-                      << pingkk::text("无法解析目标地址：") << error << "\n";
-        }
+    pingkk::ResolvedTarget target;
+    std::string error;
+    if (pingkk::resolveTarget(input, target, error, version)) {
+        targets.push_back(target);
+    } else {
+        complete = false;
+        std::cerr << "[" << versionName(version) << "] "
+                  << pingkk::text("无法解析目标地址：") << error << "\n";
     }
     return targets;
 }
@@ -449,11 +432,14 @@ int runPingOrRoute(const std::string& input,
             printAdvancedTarget(target, route ? pingkk::text("路由追踪") :
                 (continuous ? pingkk::text("持续 Ping") : "Ping"), timeoutMilliseconds, true);
         }
+        if (!route) {
+            std::cout << pingkk::text("当前 IP：") << pingkk::localAddressFor(target) << "\n";
+        }
         if (target.host != target.ip) {
             std::cout << pingkk::text("域名 ") << target.host << pingkk::text(" 解析为 IP ") << target.ip << "\n";
         }
     }
-    printCurrentDns();
+    if (route || targets.front().host != targets.front().ip) printCurrentDns();
 
     const auto trace = [&](const pingkk::ResolvedTarget& target) -> int {
         const std::chrono::steady_clock::time_point routeStart =
@@ -560,7 +546,7 @@ int runPingOrRoute(const std::string& input,
                 } else {
                     std::cout << result.error << "\n";
                 }
-                if (!result.error.empty() && result.error != pingkk::text("请求超时") &&
+                if (!continuous && !result.error.empty() && result.error != pingkk::text("请求超时") &&
                     result.error != pingkk::text("探测已中断")) {
                     stats.fatal = true;
                 }
@@ -730,7 +716,6 @@ int main(int argc, char* argv[]) {
 
     int timeoutMilliseconds = 1000;
     pingkk::IpVersion version = pingkk::IpVersion::V4;
-    bool versionSpecified = false;
     bool continuous = false;
     bool route = false;
     bool checkup = false;
@@ -745,14 +730,8 @@ int main(int argc, char* argv[]) {
                 std::cerr << pingkk::text("超时时间必须是 100 到 60000 之间的毫秒数。\n");
                 return 2;
             }
-        } else if (argument == "-v6" || argument == "-v46") {
-            const pingkk::IpVersion selected = argument == "-v6" ? pingkk::IpVersion::V6 : pingkk::IpVersion::Both;
-            if (versionSpecified && selected != version) {
-                std::cerr << pingkk::text("-v6 和 -v46 不能同时使用。\n");
-                return 2;
-            }
-            version = selected;
-            versionSpecified = true;
+        } else if (argument == "-v6") {
+            version = pingkk::IpVersion::V6;
         } else if (argument == "-t") {
             continuous = true;
         } else if (argument == "-r" || argument == "--route") {
@@ -784,13 +763,7 @@ int main(int argc, char* argv[]) {
             std::cerr << pingkk::text("一键网络检查不需要目标地址。\n");
             return 2;
         }
-        int exitCode = 0;
-        const std::vector<pingkk::IpVersion> versions = selectedVersions(version);
-        for (std::size_t index = 0; index < versions.size() && g_running; ++index) {
-            if (version == pingkk::IpVersion::Both) std::cout << "[" << versionName(versions[index]) << "]\n";
-            const int result = runCheckup(timeoutMilliseconds, advanced, versions[index]);
-            if (result != 0) exitCode = result;
-        }
+        const int exitCode = runCheckup(timeoutMilliseconds, advanced, version);
         return g_running ? exitCode : 130;
     }
     if (dnsComparison) {
@@ -798,13 +771,7 @@ int main(int argc, char* argv[]) {
             std::cerr << pingkk::text("DNS 对比需要一个域名。\n");
             return 2;
         }
-        int exitCode = 0;
-        const std::vector<pingkk::IpVersion> versions = selectedVersions(version);
-        for (std::size_t index = 0; index < versions.size() && g_running; ++index) {
-            if (version == pingkk::IpVersion::Both) std::cout << "[" << versionName(versions[index]) << "]\n";
-            const int result = printDnsComparison(positional[0], timeoutMilliseconds, true, advanced, versions[index]);
-            if (result != 0) exitCode = result;
-        }
+        const int exitCode = printDnsComparison(positional[0], timeoutMilliseconds, true, advanced, version);
         return g_running ? exitCode : 130;
     }
     if (positional.empty()) {
