@@ -60,7 +60,9 @@ elif command -v shasum >/dev/null 2>&1; then hash_tool=shasum
 else fail '缺少 SHA256 校验工具。' 'A SHA256 checksum tool is required.'
 fi
 
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pingkk-update.XXXXXXXX")
+# The launcher has already selected a writable installation or user directory.
+work_dir=$(mktemp -d "${0}.work.XXXXXXXX") ||
+    fail '无法创建更新目录，请检查程序目录或用户目录的写入权限。' 'Unable to create the update directory. Check write permissions for the program or user directory.'
 asset="pingkk-${platform}-cli.${extension}"
 github=https://github.com/trah01/pingkk
 mirror=https://he.sb/pingkk/latest

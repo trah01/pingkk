@@ -108,7 +108,8 @@ try {
         default { throw "Unsupported Windows architecture: $architecture" }
     }
     $asset = "pingkk-$platform-cli.zip"
-    $workDir = Join-Path ([IO.Path]::GetTempPath()) ('pingkk-update-' + [Guid]::NewGuid().ToString('N'))
+    # The launcher has already selected a writable installation or user directory.
+    $workDir = $PSCommandPath + '.work-' + [Guid]::NewGuid().ToString('N')
     New-Item -ItemType Directory -Path $workDir | Out-Null
     Say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
     $tag = Get-GitHubRelease
