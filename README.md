@@ -63,7 +63,7 @@ macOS / Linux：
 curl -fsSL https://he.sb/pingkk.sh | sh
 ```
 
-普通用户默认安装到 `~/.local/bin/pingkk`，无需 root 或 sudo；root 用户默认安装到 `/usr/local/bin/pingkk`。如果用户目录尚未加入 PATH，脚本会显示当前终端可执行的设置命令。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
+普通用户默认安装到 `~/.local/bin/pingkk`，无需 root 或 sudo；root 用户默认安装到 `/usr/local/bin/pingkk`。临时文件放在安装目录下，结束后自动清理，无需写入 `/tmp`。如果用户目录尚未加入 PATH，脚本会显示当前终端可执行的设置命令。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
 
 Windows（在 PowerShell 5.1 或更高版本中执行）：
 

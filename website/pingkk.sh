@@ -65,7 +65,8 @@ case "$prefix" in
 esac
 mkdir -p "$prefix/bin" "$prefix/share/pingkk/licenses" ||
     fail "无法写入安装目录 $prefix，请使用 PINGKK_PREFIX 指定当前用户可写的目录。"
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pingkk-install.XXXXXXXX")
+work_dir=$(mktemp -d "$prefix/share/pingkk/.install.XXXXXXXX") ||
+    fail "无法在 $prefix/share/pingkk 创建临时目录，请检查目录权限。"
 trap 'rm -rf "$work_dir"' EXIT
 trap 'exit 1' HUP INT TERM
 
