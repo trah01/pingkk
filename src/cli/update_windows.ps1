@@ -132,6 +132,15 @@ try {
     if ($source -eq 'mirror') {
         $base = 'https://he.sb/pingkk/latest'
         Say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 更新。' 'GitHub is unavailable; using https://he.sb/pingkk/latest/.'
+        $manifest = Join-Path $workDir 'version.json'
+        Download "$base/version.json" $manifest 10
+        $metadata = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+        $tag = [string]$metadata.tag_name
+        if ($tag -notmatch '^v?\d+\.\d+\.\d+$') { throw 'Invalid official version information.' }
+        if ([Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
+            No-UpdateNeeded $tag.TrimStart('v')
+            return
+        }
         Download "$base/SHA256SUMS.txt" (Join-Path $workDir 'SHA256SUMS.txt') 10
         Download "$base/$asset" (Join-Path $workDir $asset) 10
     }
@@ -155,8 +164,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'The new version cannot run on this system. The current program was not changed.' }
     if ($banner.Count -eq 0 -or $banner[0] -notmatch 'v(\d+\.\d+\.\d+)') { throw 'Unable to determine the new program version.' }
     $newVersion = $Matches[1]
-    if ($source -eq 'github' -and $tag.TrimStart('v') -ne $newVersion) {
-        throw 'The executable version does not match the GitHub release. The current program was not changed.'
+    if ($tag.TrimStart('v') -ne $newVersion) {
+        throw 'The executable version does not match the update source. The current program was not changed.'
     }
     if ([Version]$newVersion -le [Version]$CurrentVersion) {
         No-UpdateNeeded $newVersion

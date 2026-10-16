@@ -3,7 +3,7 @@ if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
 
-project(pingkk VERSION 0.1.3 LANGUAGES CXX)
+project(pingkk VERSION 0.1.5 LANGUAGES CXX)
 
 # Keep our executables (including the separately installed CLI) self-contained.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -86,9 +86,9 @@ endif()
 
 if(PINGKK_BUILD_GUI)
     if(PINGKK_QT_MAJOR STREQUAL "5")
-        find_package(Qt5 5.11 COMPONENTS Widgets REQUIRED)
+        find_package(Qt5 5.11 COMPONENTS Widgets Network REQUIRED)
     elseif(PINGKK_QT_MAJOR STREQUAL "6")
-        find_package(Qt6 6.2 COMPONENTS Widgets REQUIRED)
+        find_package(Qt6 6.2 COMPONENTS Widgets Network REQUIRED)
     else()
         message(FATAL_ERROR "PINGKK_QT_MAJOR must be 5 or 6")
     endif()
@@ -102,6 +102,10 @@ if(PINGKK_BUILD_GUI)
             src/gui/main.cpp
             src/gui/main_window.cpp
             src/gui/main_window.h
+            src/gui/settings_dialog.cpp
+            src/gui/settings_dialog.h
+            src/gui/update_check.cpp
+            src/gui/update_check.h
             src/gui/resources.qrc
         )
         if(WIN32)
@@ -138,6 +142,7 @@ if(PINGKK_BUILD_GUI)
         target_link_libraries(pingkk_gui PRIVATE
             pingkk_core
             Qt${PINGKK_QT_MAJOR}::Widgets
+            Qt${PINGKK_QT_MAJOR}::Network
         )
         add_dependencies(pingkk_gui pingkk)
         if(APPLE)

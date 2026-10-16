@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "settings_dialog.h"
 #include "pingkk/core.h"
 #include "pingkk/version.h"
 
@@ -31,6 +32,8 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QSyntaxHighlighter>
 #include <QTextBlockFormat>
 #include <QTextCharFormat>
@@ -107,7 +110,7 @@ enum LogTone {
 
 QString normalizedLogLine(const QString& text) {
     QString line = text.trimmed();
-    if (line.startsWith("[IPv4] ") || line.startsWith("[IPv6] ")) line = line.mid(7);
+    if (line.startsWith("[IPv4] ") || line.startsWith("[IPv6] ")) line = line.mid(7).trimmed();
     return line;
 }
 
@@ -234,6 +237,19 @@ void configureComboBox(QComboBox* comboBox) {
     view->setUniformItemSizes(true);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     comboBox->setView(view);
+}
+
+void fitComboBoxText(QComboBox* comboBox) {
+    comboBox->ensurePolished();
+    QStyleOptionComboBox option;
+    option.initFrom(comboBox);
+    option.currentText = comboBox->currentText();
+    option.fontMetrics = comboBox->fontMetrics();
+    const QSize textSize(option.fontMetrics.boundingRect(option.currentText).width(),
+                         option.fontMetrics.height());
+    const QSize controlSize = comboBox->style()->sizeFromContents(
+        QStyle::CT_ComboBox, &option, textSize, comboBox);
+    comboBox->setFixedWidth(qMax(controlSize.width(), textSize.width() + 48));
 }
 
 bool normalizePorts(const QString& input, QString& normalized) {
@@ -378,37 +394,25 @@ void MainWindow::buildInterface() {
 
     QWidget* central = new QWidget(this);
     QVBoxLayout* root = new QVBoxLayout(central);
-    root->setContentsMargins(22, 10, 22, 6);
-    root->setSpacing(14);
+    root->setContentsMargins(11, 10, 11, 11);
+    root->setSpacing(6);
 
     QHBoxLayout* topBar = new QHBoxLayout;
     currentIpTitle_ = new QLabel;
     currentIpTitle_->setObjectName("mutedLabel");
     currentIpValue_ = new QLabel("—");
     currentIpValue_->setObjectName("addressLabel");
-    QFrame* currentIpPanel = new QFrame;
-    currentIpPanel->setObjectName("currentIpPanel");
-    currentIpPanel->setFixedHeight(34);
-    QHBoxLayout* currentIpLayout = new QHBoxLayout(currentIpPanel);
-    currentIpLayout->setContentsMargins(12, 0, 12, 0);
-    currentIpLayout->setSpacing(10);
-    currentIpLayout->addWidget(currentIpTitle_);
-    currentIpLayout->addWidget(currentIpValue_);
     languageCombo_ = new FixedPopupComboBox;
     languageCombo_->setObjectName("languageCombo");
     languageCombo_->addItem(QString::fromUtf8("中文"));
     languageCombo_->addItem("English");
-    languageCombo_->setFixedWidth(110);
     configureComboBox(languageCombo_);
     ipVersionCombo_ = new FixedPopupComboBox;
-    ipVersionCombo_->addItems(QStringList() << "IPv4" << "IPv6" << "IPv4 + IPv6");
-    ipVersionCombo_->setFixedWidth(140);
+    ipVersionCombo_->addItems(QStringList() << "IPv4" << "IPv6");
     configureComboBox(ipVersionCombo_);
-    installButton_ = new QPushButton;
-    installButton_->setObjectName("quietButton");
-    topBar->addWidget(currentIpPanel);
+    topBar->addWidget(currentIpTitle_);
+    topBar->addWidget(currentIpValue_);
     topBar->addStretch();
-    topBar->addWidget(installButton_);
     topBar->addWidget(ipVersionCombo_);
     topBar->addWidget(languageCombo_);
 
@@ -429,7 +433,7 @@ void MainWindow::buildInterface() {
     protocolTitle_ = new QLabel;
     protocolCombo_ = new FixedPopupComboBox;
     protocolCombo_->addItems(QStringList()
-                             << "TCP" << "UDP" << "TCP + UDP" << "Ping"
+                             << "Ping" << "TCP" << "UDP" << "TCP + UDP"
                              << QString::fromUtf8("路由追踪")
                              << QString::fromUtf8("一键网络检查")
                              << QString::fromUtf8("DNS 对比诊断"));
@@ -471,6 +475,7 @@ void MainWindow::buildInterface() {
     root->addLayout(inputArea);
 
     QHBoxLayout* outputHeader = new QHBoxLayout;
+    outputHeader->setContentsMargins(0, 0, 0, 0);
     outputTitle_ = new QLabel;
     outputTitle_->setObjectName("sectionTitle");
     advancedCheckBox_ = new QCheckBox;
@@ -479,9 +484,12 @@ void MainWindow::buildInterface() {
     exportButton_->setObjectName("textButton");
     clearButton_ = new QPushButton;
     clearButton_->setObjectName("textButton");
+    settingsButton_ = new QPushButton;
+    settingsButton_->setObjectName("textButton");
     outputHeader->addWidget(outputTitle_);
     outputHeader->addWidget(advancedCheckBox_);
     outputHeader->addStretch();
+    outputHeader->addWidget(settingsButton_);
     outputHeader->addWidget(exportButton_);
     outputHeader->addWidget(clearButton_);
     root->addLayout(outputHeader);
@@ -492,22 +500,10 @@ void MainWindow::buildInterface() {
     outputEdit_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     new LogHighlighter(outputEdit_->document());
 
-    QLabel* projectLink = new QLabel(
-        QString("v%2 · <a href=\"%1\">项目地址</a>")
-            .arg(PINGKK_PROJECT_URL)
-            .arg(PINGKK_VERSION));
-    projectLink->setOpenExternalLinks(true);
-    projectLink->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    projectLink->setStyleSheet("font-size: 13px; color: #68717d;");
-    QHBoxLayout* footerBar = new QHBoxLayout;
-    footerBar->setContentsMargins(0, 0, 0, 0);
-    footerBar->addWidget(projectLink);
-    footerBar->addStretch();
     QVBoxLayout* outputArea = new QVBoxLayout;
     outputArea->setContentsMargins(0, 0, 0, 0);
     outputArea->setSpacing(4);
     outputArea->addWidget(outputEdit_, 1);
-    outputArea->addLayout(footerBar);
     root->addLayout(outputArea, 1);
     setCentralWidget(central);
 
@@ -518,7 +514,6 @@ void MainWindow::buildInterface() {
         "QLabel { background: transparent; }"
         "QLabel:disabled { color: #8a939e; }"
         "QFrame#controlPanel { background: #f8f9fb; border: 1px solid #dfe3e8; border-radius: 12px; }"
-        "QFrame#currentIpPanel { background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
         "QLabel#mutedLabel { color: #68717d; }"
         "QLabel#inputUnit { color: #68717d; background: transparent; font-size: 14px; }"
         "QLabel#addressLabel, QLabel#sectionTitle { font-weight: 600; color: #18202a; }"
@@ -532,7 +527,7 @@ void MainWindow::buildInterface() {
         "border-color: #d7dce1; }"
         "QComboBox { padding-right: 29px; }"
         "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; "
-        "width: 26px; border: 0; border-left: 1px solid #e1e5e9; background: transparent; }"
+        "width: 26px; border: 0; background: transparent; }"
         "QComboBox::down-arrow { image: none; }"
         "QComboBox#languageCombo { min-height: 32px; padding: 0 25px 0 8px; }"
         "QComboBox#languageCombo::drop-down { width: 24px; }"
@@ -550,7 +545,7 @@ void MainWindow::buildInterface() {
         "QPushButton#primaryButton:hover { background: #13598f; }"
         "QPushButton#dangerButton { color: #a42b2b; border-color: #d8a7a7; }"
         "QPushButton#quietButton { min-height: 32px; color: #394451; background: transparent; }"
-        "QPushButton#textButton { border: 0; color: #1769aa; padding: 0 8px; }"
+        "QPushButton#textButton { min-height: 28px; border: 0; color: #1769aa; padding: 0 8px; }"
         "QPlainTextEdit#outputEdit { background: #fbfcfd; border: 1px solid #dfe3e8; "
         "border-radius: 10px; padding: 12px; "
         "font-size: 14px; line-height: 1.5; selection-background-color: #cfe5f7; }"
@@ -579,7 +574,9 @@ void MainWindow::buildInterface() {
     connect(stopButton_, SIGNAL(clicked()), this, SLOT(stopTest()));
     connect(languageCombo_, SIGNAL(currentIndexChanged(int)), this, SLOT(changeLanguage(int)));
     connect(protocolCombo_, SIGNAL(currentIndexChanged(int)), this, SLOT(updateProtocolFields(int)));
-    connect(installButton_, SIGNAL(clicked()), this, SLOT(installCommandLineTool()));
+    connect(settingsButton_, SIGNAL(clicked()), this, SLOT(showSettings()));
+    connect(ipVersionCombo_, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, [this](int) { fitComboBoxText(ipVersionCombo_); });
     connect(exportButton_, SIGNAL(clicked()), this, SLOT(copyReportImage()));
     connect(clearButton_, SIGNAL(clicked()), this, SLOT(clearOutput()));
     connect(targetEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
@@ -611,7 +608,9 @@ void MainWindow::updateTexts() {
                   : (english_ ? "Test once" : QString::fromUtf8("单次测试")));
     continuousButton_->setText(english_ ? "Test continuously" : QString::fromUtf8("持续测试"));
     stopButton_->setText(english_ ? "Stop" : QString::fromUtf8("停止测试"));
-    installButton_->setText(english_ ? "Install CLI" : QString::fromUtf8("安装命令行工具"));
+    settingsButton_->setText(english_ ? "Settings" : QString::fromUtf8("设置"));
+    fitComboBoxText(languageCombo_);
+    fitComboBoxText(ipVersionCombo_);
     outputTitle_->setText(english_ ? "Output" : QString::fromUtf8("日志输出"));
     advancedCheckBox_->setText(english_ ? "Advanced output" : QString::fromUtf8("高级输出"));
     advancedCheckBox_->setToolTip(
@@ -633,8 +632,8 @@ QString MainWindow::commandPath() const {
 }
 
 QString MainWindow::protocolArgument() const {
-    if (protocolCombo_->currentIndex() == 1) return "udp";
-    if (protocolCombo_->currentIndex() == 2) return "all";
+    if (protocolCombo_->currentIndex() == 2) return "udp";
+    if (protocolCombo_->currentIndex() == 3) return "all";
     return "tcp";
 }
 
@@ -655,7 +654,7 @@ void MainWindow::startTest(bool continuous) {
         return;
     }
     QString ports;
-    if (protocolCombo_->currentIndex() < 3 && !normalizePorts(portEdit_->text(), ports)) {
+    if (functionIndex >= 1 && functionIndex <= 3 && !normalizePorts(portEdit_->text(), ports)) {
         showInputError(english_ ? "Enter ports from 1 to 65535, separated with commas."
                                 : QString::fromUtf8("请输入 1 到 65535 之间的端口，多个端口用逗号分隔。"));
         portEdit_->setFocus();
@@ -672,7 +671,6 @@ void MainWindow::startTest(bool continuous) {
     QStringList arguments;
     arguments << "--lang" << (english_ ? "en" : "zh");
     if (ipVersionCombo_->currentIndex() == 1) arguments << "-v6";
-    if (ipVersionCombo_->currentIndex() == 2) arguments << "-v46";
     if (functionIndex == 5) {
         arguments << "--checkup";
     } else if (functionIndex == 6) {
@@ -683,7 +681,7 @@ void MainWindow::startTest(bool continuous) {
         if (continuous) arguments << "-t";
         arguments << target;
     }
-    if (functionIndex < 3) {
+    if (functionIndex >= 1 && functionIndex <= 3) {
         portEdit_->setText(ports);
         arguments << ports << protocolArgument();
     }
@@ -834,7 +832,7 @@ void MainWindow::changeLanguage(int index) {
 }
 
 void MainWindow::updateProtocolFields(int index) {
-    const bool needsPort = index < 3;
+    const bool needsPort = index >= 1 && index <= 3;
     const bool route = index == 4;
     const bool checkup = index == 5;
     const bool dnsComparison = index == 6;
@@ -878,6 +876,11 @@ void MainWindow::showInputError(const QString& message) {
     showTextMessage(this,
                     english_ ? "Cannot start" : QString::fromUtf8("无法开始测试"),
                     message);
+}
+
+void MainWindow::showSettings() {
+    SettingsDialog dialog(english_, [this]() { installCommandLineTool(); }, this);
+    dialog.exec();
 }
 
 void MainWindow::installCommandLineTool() {

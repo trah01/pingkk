@@ -121,6 +121,18 @@ if [ "${source}" = github ]; then
 fi
 if [ "${source}" = mirror ]; then
     say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 更新。' 'GitHub is unavailable; using https://he.sb/pingkk/latest/.'
+    curl --proto '=https' --proto-redir '=https' -fsSL \
+        --connect-timeout 10 --max-time 10 -o "${work_dir}/version.json" "${mirror}/version.json" ||
+        fail '无法获取官网版本信息，当前程序未改动。' 'Unable to fetch the official version information. The current program was not changed.'
+    # The manifest has one field: {"tag_name":"vMAJOR.MINOR.PATCH"}.
+    # Accept only that schema instead of treating arbitrary JSON as shell input.
+    tag=$(tr -d '\r\n' < "${work_dir}/version.json" | sed -n \
+        's/^[[:space:]]*{[[:space:]]*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)"[[:space:]]*}[[:space:]]*$/\1/p')
+    [ -n "${tag}" ] || fail '官网版本信息格式不正确，当前程序未改动。' 'Invalid official version information. The current program was not changed.'
+    if ! version_is_newer "${tag}"; then
+        no_update_needed "${tag}"
+        exit 0
+    fi
     fetch_package || fail '更新下载失败，当前程序未改动。' 'Download failed. The current program was not changed.'
 fi
 expected=$(awk -v name="${asset}" '$2 == name || $2 == "*" name {print $1; exit}' "${work_dir}/SHA256SUMS.txt")
@@ -144,8 +156,8 @@ chmod 755 "${binary}"
 # Older releases do not yet provide --version; their help banner includes it.
 new_version=$(sed -n '1s/.*v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' "${work_dir}/help.txt")
 [ -n "${new_version}" ] || fail '无法确认新程序的版本。' 'Unable to determine the new program version.'
-if [ "${source}" = github ] && [ "${tag#v}" != "${new_version}" ]; then
-    fail '程序版本与 GitHub Release 不一致，当前程序未改动。' 'The executable version does not match the GitHub release. The current program was not changed.'
+if [ "${tag#v}" != "${new_version}" ]; then
+    fail '程序版本与更新来源的版本信息不一致，当前程序未改动。' 'The executable version does not match the update source. The current program was not changed.'
 fi
 if ! version_is_newer "${new_version}"; then
     no_update_needed "${new_version}"

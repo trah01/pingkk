@@ -34,9 +34,7 @@ const char* text(const char* chinese) {
         {" 字节，IPv6 包：", " bytes, IPv6 packet: "},
         {"  前缀：", "  Prefix: "},
         {"  [跳过] 没有所选地址类型的解析结果。\n", "  [Skipped] No address of the selected IP version was resolved.\n"},
-        {"-v6 和 -v46 不能同时使用。\n", "-v6 and -v46 cannot be combined.\n"},
         {"    -v6                             使用 IPv6，默认 IPv4\n", "    -v6                                Use IPv6 (default: IPv4)\n"},
-        {"    -v46                            同时测试 IPv4 和 IPv6\n", "    -v46                               Test both IPv4 and IPv6\n"},
         {"结论：公共 DNS 均未返回所选地址类型的记录。域名可能存在，", "Conclusion: No public DNS resolver returned records for the selected IP version. The domain may exist, "},
         {"但当前没有配置可用于访问的所选类型地址。\n", "but it currently has no addresses of the selected IP version configured for access.\n"},
 
