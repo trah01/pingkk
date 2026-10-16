@@ -24,7 +24,11 @@ try {
     }
 
     $asset = "pingkk-$platform-cli.zip"
-    $workDir = Join-Path ([IO.Path]::GetTempPath()) ('pingkk-install-' + [Guid]::NewGuid().ToString('N'))
+    if (-not $env:LOCALAPPDATA) { throw 'Cannot determine the user installation directory: LOCALAPPDATA is not set.' }
+    $installDir = Join-Path $env:LOCALAPPDATA 'Programs/pingkk'
+    $binDir = Join-Path $installDir 'bin'
+    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+    $workDir = Join-Path $installDir ('.install-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDir | Out-Null
     Write-Host "Downloading $asset..."
     $downloadUrl = 'https://he.sb/pingkk/latest'
@@ -49,9 +53,6 @@ try {
     & $binary --help | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'The CLI cannot run on this system. Check the compatibility requirements in README.' }
 
-    $installDir = Join-Path $env:LOCALAPPDATA 'Programs/pingkk'
-    $binDir = Join-Path $installDir 'bin'
-    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Copy-Item -LiteralPath (Join-Path $unpacked 'licenses') -Destination $installDir -Recurse -Force
     Copy-Item -LiteralPath $binary -Destination (Join-Path $binDir 'pingkk.exe') -Force
 

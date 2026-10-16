@@ -19,7 +19,7 @@ bool isEnglish() {
 const char* text(const char* chinese) {
     if (!english) return chinese;
     static const std::map<std::string, const char*> translations = {
-        {"无法准备更新程序，请检查临时目录和系统权限。\n", "Unable to prepare the updater. Check the temporary directory and system permissions.\n"},
+        {"无法准备更新程序，请检查程序目录或用户目录的写入权限。\n", "Unable to prepare the updater. Check write permissions for the program or user directory.\n"},
         {"  pingkk update                     升级命令行程序\n", "  pingkk update                        Update the command-line program\n"},
         {"  pingkk --version                  显示当前版本\n", "  pingkk --version                     Show the current version\n"},
         {"update 不需要其他参数，仅支持 --lang zh 或 --lang en。\n", "update takes no additional arguments except --lang zh or --lang en.\n"},

@@ -122,6 +122,8 @@ xattr -dr com.apple.quarantine pingkk.app
 
 更新会替换当前 CLI 的实际文件路径，macOS / Linux 的系统目录可能需要 `sudo`，Windows 的系统目录需要管理员权限。macOS 应用包内的 CLI 需通过图形界面包整体更新，避免破坏应用签名。macOS / Linux 需要系统已有的 `curl`、解压及 SHA256 工具；Windows 需要 PowerShell 5.1 或更高版本。
 
+更新脚本及下载、解压文件优先放在程序目录，无法写入时改用用户目录，结束后自动清理；macOS / Linux 无需写入 `/tmp`。Windows 安装脚本的临时文件放在用户安装目录下。
+
 ```bash
 # 测试 TCP 端口
 pingkk example.com 443 tcp

@@ -15,6 +15,7 @@
 #else
 #include <cerrno>
 #include <cstdlib>
+#include <pwd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -27,7 +28,7 @@ namespace pingkk { namespace cli {
 namespace {
 
 int preparationError() {
-    std::cerr << text("无法准备更新程序，请检查临时目录和系统权限。\n");
+    std::cerr << text("无法准备更新程序，请检查程序目录或用户目录的写入权限。\n");
     return 1;
 }
 
@@ -102,9 +103,24 @@ int updateCommand() {
     const std::wstring target(&executable[0], length);
     wchar_t directory[MAX_PATH] = {0};
     wchar_t temporary[MAX_PATH] = {0};
+    std::vector<std::wstring> directories;
+    directories.push_back(target.substr(0, target.find_last_of(L"\\/")));
+    const wchar_t* variables[] = {L"LOCALAPPDATA", L"USERPROFILE"};
+    for (const wchar_t* variable : variables) {
+        const DWORD size = GetEnvironmentVariableW(variable, directory, MAX_PATH);
+        if (size > 0 && size < MAX_PATH) directories.push_back(directory);
+    }
+    // User and installation directories take precedence over the system temp path.
     const DWORD directoryLength = GetTempPathW(MAX_PATH, directory);
-    if (directoryLength == 0 || directoryLength >= MAX_PATH ||
-        GetTempFileNameW(directory, L"pku", 0, temporary) == 0) return preparationError();
+    if (directoryLength > 0 && directoryLength < MAX_PATH) directories.push_back(directory);
+    bool created = false;
+    for (const std::wstring& candidate : directories) {
+        if (GetTempFileNameW(candidate.c_str(), L"pku", 0, temporary) != 0) {
+            created = true;
+            break;
+        }
+    }
+    if (!created) return preparationError();
     const std::wstring scriptPath = std::wstring(temporary) + L".ps1";
     if (!MoveFileExW(temporary, scriptPath.c_str(), 0)) {
         DeleteFileW(temporary);
@@ -154,13 +170,23 @@ int updateCommand() {
 #else
     const std::string target = currentExecutable();
     if (target.empty()) return preparationError();
-    const char* temporaryDirectory = std::getenv("TMPDIR");
-    const std::string directory = temporaryDirectory != NULL && *temporaryDirectory != '\0'
-        ? temporaryDirectory : "/tmp";
-    const std::string pattern = directory + "/pingkk-updater.XXXXXX";
-    std::vector<char> path(pattern.begin(), pattern.end());
-    path.push_back(0);
-    const int file = mkstemp(&path[0]);
+    std::vector<std::string> directories;
+    directories.push_back(target.substr(0, target.find_last_of('/')));
+    const char* homeDirectory = std::getenv("HOME");
+    if (homeDirectory != NULL && *homeDirectory == '/') directories.push_back(homeDirectory);
+    const passwd* account = getpwuid(geteuid());
+    if (account != NULL && account->pw_dir != NULL && *account->pw_dir == '/') {
+        directories.push_back(account->pw_dir);
+    }
+    std::vector<char> path;
+    int file = -1;
+    for (const std::string& directory : directories) {
+        const std::string pattern = directory + "/.pingkk-updater.XXXXXX";
+        path.assign(pattern.begin(), pattern.end());
+        path.push_back(0);
+        file = mkstemp(&path[0]);
+        if (file >= 0) break;
+    }
     if (file < 0) return preparationError();
     const bool written = writeScript(file, kUnixUpdater);
     close(file);
