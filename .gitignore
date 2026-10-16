@@ -59,3 +59,6 @@ Desktop.ini
 # 本地开发说明
 design.md
 README-self.md
+
+# 私有服务器配置、运维脚本和部署记录
+/.private/

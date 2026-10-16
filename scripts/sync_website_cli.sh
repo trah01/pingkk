@@ -76,7 +76,7 @@ print(commit)
 PY
 )
 
-for script in pingkk.sh pingkk.ps1; do
+for script in pingkk.sh pingkk.ps1 pingkk.bat; do
     download "https://raw.githubusercontent.com/$repository/$commit/website/$script" "$work_dir/$script"
     [[ -s "$work_dir/$script" ]] || fail "安装脚本为空：$script"
 done
@@ -110,7 +110,7 @@ PY
 # Publish a complete version before switching the relative latest symlink.
 # Relative symlinks also work when host and container root paths differ.
 install -d -m 755 "$site_root/pingkk"
-chmod 644 "$work_dir/pingkk.sh" "$work_dir/pingkk.ps1" "$work_dir/packages/"*
+chmod 644 "$work_dir/pingkk.sh" "$work_dir/pingkk.ps1" "$work_dir/pingkk.bat" "$work_dir/packages/"*
 if [[ ! -e "$version_dir" ]]; then
     mv "$work_dir/packages" "$version_dir"
 else
@@ -128,4 +128,5 @@ os.replace(sys.argv[1], sys.argv[2])
 PY
 mv -f "$work_dir/pingkk.sh" "$site_root/pingkk.sh"
 mv -f "$work_dir/pingkk.ps1" "$site_root/pingkk.ps1"
+mv -f "$work_dir/pingkk.bat" "$site_root/pingkk.bat"
 log "同步完成：pingkk/$release_tag/，latest -> $release_tag，脚本提交 $commit。"

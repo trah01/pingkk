@@ -71,9 +71,11 @@ Windows（在 PowerShell 5.1 或更高版本中执行）：
 irm https://he.sb/pingkk.ps1 | iex
 ```
 
+也可下载 [pingkk.bat](https://he.sb/pingkk.bat)，双击安装。BAT 会自动调用 PowerShell 5.1 或更高版本，完成后保留窗口显示结果；无需手动打开 PowerShell。
+
 安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。
 
-两个脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
+安装脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
 
 macOS / Linux 也可指定其他当前用户可写的目录，例如：
 
