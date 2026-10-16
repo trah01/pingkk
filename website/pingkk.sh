@@ -7,7 +7,7 @@ fail() {
     exit 1
 }
 
-for tool in curl uname mktemp awk install; do
+for tool in curl uname mktemp awk install id; do
     command -v "$tool" >/dev/null 2>&1 || fail "缺少 $tool，请先通过系统包管理器安装。"
 done
 
@@ -51,11 +51,20 @@ else
     fail '缺少 SHA256 校验工具，请安装 sha256sum 或 shasum。'
 fi
 
-prefix=${PINGKK_PREFIX:-/usr/local}
+if [ -n "${PINGKK_PREFIX:-}" ]; then
+    prefix=$PINGKK_PREFIX
+elif [ "$(id -u)" -eq 0 ]; then
+    prefix=/usr/local
+else
+    [ -n "${HOME:-}" ] || fail '无法确定用户目录，请设置 PINGKK_PREFIX 指定安装目录。'
+    prefix=$HOME/.local
+fi
 case "$prefix" in
     /*) ;;
     *) fail 'PINGKK_PREFIX 必须是绝对路径。' ;;
 esac
+mkdir -p "$prefix/bin" "$prefix/share/pingkk/licenses" ||
+    fail "无法写入安装目录 $prefix，请使用 PINGKK_PREFIX 指定当前用户可写的目录。"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pingkk-install.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -87,20 +96,16 @@ binary="$work_dir/unpacked/bin/pingkk"
 chmod 755 "$binary"
 "$binary" --help >/dev/null || fail '程序无法运行，请检查系统版本及运行库是否满足 README 中的兼容性要求。'
 
-as_root() {
-    if [ "$(id -u)" -eq 0 ] || { [ -d "$prefix" ] && [ -w "$prefix" ] && { [ ! -d "$prefix/bin" ] || [ -w "$prefix/bin" ]; } && { [ ! -d "$prefix/share" ] || [ -w "$prefix/share" ]; }; }; then
-        "$@"
-    else
-        command -v sudo >/dev/null 2>&1 || fail "安装到 $prefix 需要管理员权限，请使用 root 或设置 PINGKK_PREFIX。"
-        sudo "$@"
-    fi
-}
-
-as_root mkdir -p "$prefix/bin" "$prefix/share/pingkk/licenses"
-as_root install -m 644 "$work_dir/unpacked/licenses/"* "$prefix/share/pingkk/licenses/"
-as_root install -m 755 "$binary" "$prefix/bin/pingkk"
+install -m 644 "$work_dir/unpacked/licenses/"* "$prefix/share/pingkk/licenses/" || fail '无法安装许可证文件，请检查安装目录权限。'
+install -m 755 "$binary" "$prefix/bin/pingkk" || fail '无法安装命令行程序，请检查安装目录权限。'
 printf '安装完成：%s/bin/pingkk\n' "$prefix"
 case ":${PATH:-}:" in
     *":$prefix/bin:"*) printf '运行 pingkk --help 开始使用。\n' ;;
-    *) printf '请将 %s/bin 加入 PATH，或直接运行 %s/bin/pingkk --help。\n' "$prefix" "$prefix" ;;
+    *)
+        if [ "$prefix" = "${HOME:-}/.local" ]; then
+            printf '%s\n' '当前终端执行：export PATH="$HOME/.local/bin:$PATH"'
+            printf '%s\n' '也可将这行加入你的 Shell 配置文件，后续打开终端即可使用 pingkk。'
+        fi
+        printf '请将 %s/bin 加入 PATH，或直接运行 %s/bin/pingkk --help。\n' "$prefix" "$prefix"
+        ;;
 esac

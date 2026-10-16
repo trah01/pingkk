@@ -63,7 +63,7 @@ macOS / Linux：
 curl -fsSL https://he.sb/pingkk.sh | sh
 ```
 
-默认安装到 `/usr/local/bin/pingkk`，需要时会通过 `sudo` 请求管理员权限。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
+普通用户默认安装到 `~/.local/bin/pingkk`，无需 root 或 sudo；root 用户默认安装到 `/usr/local/bin/pingkk`。如果用户目录尚未加入 PATH，脚本会显示当前终端可执行的设置命令。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
 
 Windows（在 PowerShell 5.1 或更高版本中执行）：
 
@@ -75,11 +75,10 @@ irm https://he.sb/pingkk.ps1 | iex
 
 两个脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
 
-macOS / Linux 也可安装到已有的用户目录，例如：
+macOS / Linux 也可指定其他当前用户可写的目录，例如：
 
 ```bash
-mkdir -p "$HOME/.local"
-curl -fsSL https://he.sb/pingkk.sh | PINGKK_PREFIX="$HOME/.local" sh
+curl -fsSL https://he.sb/pingkk.sh | PINGKK_PREFIX="$HOME/apps/pingkk" sh
 ```
 
 使用自定义目录时，需要将其 `bin` 子目录加入 PATH。
