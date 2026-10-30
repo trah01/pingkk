@@ -1,9 +1,11 @@
 #include "arguments.h"
 #include "update.h"
+#include "http.h"
 #include "pingkk/language.h"
 #include "pingkk/core.h"
 #include "pingkk/diagnostics.h"
 #include "pingkk/network_check.h"
+#include "pingkk/http_check.h"
 #include "pingkk/version.h"
 
 #include <chrono>
@@ -81,9 +83,12 @@ void printHelp() {
         << pingkk::text("  pingkk -r, --route <地址>          路由追踪（不解析节点域名）\n")
         << pingkk::text("  pingkk -jc, --checkup              一键网络检查\n")
         << pingkk::text("  pingkk --dns <域名>                对比系统、当前及公共 DNS\n")
+        << pingkk::text("  pingkk --http <网址>               HTTP / HTTPS 检测\n")
         << pingkk::text("  额外附加参数：\n")
         << pingkk::text("    -a, --advanced                  输出更详细的诊断信息\n")
         << pingkk::text("    --timeout <毫秒>                设置超时时间，默认 1000\n")
+        << pingkk::text("                                    HTTP 检测默认 10000\n")
+        << pingkk::text("    --proxy <代理地址>              HTTP 检测使用指定代理\n")
         << pingkk::text("    -t                              持续测试\n")
         << pingkk::text("    -v6                             使用 IPv6，默认 IPv4\n")
         << pingkk::text("    --lang <zh|en>                  设置输出语言，默认 zh\n")
@@ -395,19 +400,36 @@ const char* versionName(pingkk::IpVersion version) {
     return version == pingkk::IpVersion::V6 ? "IPv6" : "IPv4";
 }
 
+void printLocalNetwork(pingkk::IpVersion version) {
+    std::cout << pingkk::text("当前 IP：") << pingkk::primaryLocalAddress(version) << "\n";
+    printCurrentDns();
+}
+
 std::vector<pingkk::ResolvedTarget> resolveSelectedTargets(
-        const std::string& input, pingkk::IpVersion version, bool& complete) {
+        const std::string& input, pingkk::IpVersion version, bool& complete,
+        bool continuous = false) {
     std::vector<pingkk::ResolvedTarget> targets;
-    complete = true;
-    pingkk::ResolvedTarget target;
-    std::string error;
-    if (pingkk::resolveTarget(input, target, error, version)) {
-        targets.push_back(target);
-    } else {
-        complete = false;
+    complete = false;
+    bool networkPrinted = false;
+    do {
+        const std::chrono::steady_clock::time_point iterationStart = std::chrono::steady_clock::now();
+        pingkk::ResolvedTarget target;
+        std::string error;
+        if (pingkk::resolveTarget(input, target, error, version)) {
+            targets.push_back(target);
+            complete = true;
+            break;
+        }
+        if (!g_running) break;
+        if (!networkPrinted) {
+            printLocalNetwork(version);
+            networkPrinted = true;
+        }
         std::cerr << "[" << versionName(version) << "] "
                   << pingkk::text("无法解析目标地址：") << error << "\n";
-    }
+        if (!continuous) break;
+        waitUntilOrStopped(iterationStart + std::chrono::seconds(1));
+    } while (g_running);
     return targets;
 }
 
@@ -418,14 +440,15 @@ int runPingOrRoute(const std::string& input,
                    bool advanced,
                    pingkk::IpVersion version) {
     const std::string host = pingkk::extractHost(input);
-    if (host.empty()) {
+    if (host.empty() && !continuous) {
+        printLocalNetwork(version);
         std::cerr << pingkk::text("目标地址格式不正确。\n");
         return 2;
     }
 
     bool complete = true;
-    const std::vector<pingkk::ResolvedTarget> targets = resolveSelectedTargets(host, version, complete);
-    if (targets.empty()) return 2;
+    const std::vector<pingkk::ResolvedTarget> targets = resolveSelectedTargets(host, version, complete, continuous);
+    if (targets.empty()) return g_running ? 2 : 130;
     for (std::size_t index = 0; index < targets.size(); ++index) {
         const pingkk::ResolvedTarget& target = targets[index];
         if (advanced) {
@@ -590,10 +613,7 @@ void printProbe(const pingkk::ResolvedTarget& target,
 }
 
 int showGuiDownloadHint() {
-    std::cerr << pingkk::text("未找到图形界面，请下载适合当前系统的图形界面包或安装包：\n")
-              << "1. GitHub Releases: " PINGKK_PROJECT_URL "/releases\n"
-              << pingkk::text("2. 网站下载：https://he.sb/pingkk/\n");
-    return 1;
+    return pingkk::cli::installGuiCommand();
 }
 
 int showGuiLaunchError() {
@@ -633,8 +653,31 @@ int launchGui(const char* executablePath) {
     path = path.substr(0, slash + 1) + L"pingkk-gui.exe";
     if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) {
         const DWORD error = GetLastError();
-        return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND
-                   ? showGuiDownloadHint() : showGuiLaunchError();
+        if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) return showGuiLaunchError();
+        // 独立安装的 CLI 也能找到安装向导写入的图形界面位置。
+        const HKEY roots[] = {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        const wchar_t* uninstallKey = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
+                                      L"{DDF63DE8-6F73-4F94-B5E9-AD8AEBA82EF2}_is1";
+        bool found = false;
+        for (HKEY root : roots) {
+            HKEY key = NULL;
+            if (RegOpenKeyExW(root, uninstallKey, 0, KEY_QUERY_VALUE | KEY_WOW64_64KEY, &key) != ERROR_SUCCESS) continue;
+            std::vector<wchar_t> location(32768, 0);
+            DWORD bytes = static_cast<DWORD>(location.size() * sizeof(wchar_t));
+            DWORD type = 0;
+            const LONG status = RegQueryValueExW(key, L"InstallLocation", NULL, &type,
+                                                reinterpret_cast<BYTE*>(&location[0]), &bytes);
+            RegCloseKey(key);
+            if (status != ERROR_SUCCESS || type != REG_SZ || bytes >= location.size() * sizeof(wchar_t)) continue;
+            const std::wstring candidate = std::wstring(&location[0]) + L"\\pingkk-gui.exe";
+            const DWORD attributes = GetFileAttributesW(candidate.c_str());
+            if (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                path = candidate;
+                found = true;
+                break;
+            }
+        }
+        if (!found) return showGuiDownloadHint();
     }
     STARTUPINFOW startup = {};
     startup.cb = sizeof(startup);
@@ -654,7 +697,13 @@ int launchGui(const char* executablePath) {
     const std::string::size_type slash = path.find_last_of('/');
     path = (slash == std::string::npos ? std::string() : path.substr(0, slash + 1)) + "pingkk-gui";
     if (access(path.c_str(), F_OK) != 0) {
-        return errno == ENOENT ? showGuiDownloadHint() : showGuiLaunchError();
+        const int pathError = errno;
+        // CLI 可能通过用户目录安装，而 DEB 图形界面位于系统目录。
+        if (access("/usr/bin/pingkk-gui", X_OK) == 0) {
+            return runSystemTool(std::vector<std::string>{"/usr/bin/pingkk-gui"}) == 0
+                       ? 0 : showGuiLaunchError();
+        }
+        return pathError == ENOENT ? showGuiDownloadHint() : showGuiLaunchError();
     }
     return runSystemTool(std::vector<std::string>{path}) == 0 ? 0 : showGuiLaunchError();
 #endif
@@ -715,12 +764,15 @@ int main(int argc, char* argv[]) {
     }
 
     int timeoutMilliseconds = 1000;
+    bool timeoutSpecified = false;
     pingkk::IpVersion version = pingkk::IpVersion::V4;
     bool continuous = false;
     bool route = false;
     bool checkup = false;
     bool dnsComparison = false;
+    bool http = false;
     bool advanced = false;
+    std::string proxy;
     std::vector<std::string> positional;
     for (std::size_t index = 0; index < arguments.size(); ++index) {
         const std::string& argument = arguments[index];
@@ -730,6 +782,14 @@ int main(int argc, char* argv[]) {
                 std::cerr << pingkk::text("超时时间必须是 100 到 60000 之间的毫秒数。\n");
                 return 2;
             }
+            timeoutSpecified = true;
+        } else if (argument == "--proxy") {
+            if (index + 1 >= arguments.size() || arguments[index + 1].empty() ||
+                arguments[index + 1][0] == '-') {
+                std::cerr << pingkk::text("请在 --proxy 后填写代理地址。\n");
+                return 2;
+            }
+            proxy = arguments[++index];
         } else if (argument == "-v6") {
             version = pingkk::IpVersion::V6;
         } else if (argument == "-t") {
@@ -740,6 +800,8 @@ int main(int argc, char* argv[]) {
             checkup = true;
         } else if (argument == "--dns") {
             dnsComparison = true;
+        } else if (argument == "--http") {
+            http = true;
         } else if (argument == "-a" || argument == "--advanced") {
             advanced = true;
         } else if (!argument.empty() && argument[0] == '-') {
@@ -749,12 +811,17 @@ int main(int argc, char* argv[]) {
             positional.push_back(argument);
         }
     }
+    if (http && !timeoutSpecified) timeoutMilliseconds = 10000;
     if (static_cast<int>(route) + static_cast<int>(checkup) +
-        static_cast<int>(dnsComparison) > 1) {
-        std::cerr << pingkk::text("路由追踪、网络检查和 DNS 对比不能同时使用。\n");
+        static_cast<int>(dnsComparison) + static_cast<int>(http) > 1) {
+        std::cerr << pingkk::text("路由追踪、网络检查、DNS 对比和 HTTP 检测不能同时使用。\n");
         return 2;
     }
-    if (continuous && (checkup || dnsComparison)) {
+    if (!proxy.empty() && !http) {
+        std::cerr << pingkk::text("--proxy 仅用于 HTTP 检测。\n");
+        return 2;
+    }
+    if (continuous && (checkup || dnsComparison || http)) {
         std::cerr << pingkk::text("持续测试只能用于 Ping 或端口测试。\n");
         return 2;
     }
@@ -772,6 +839,15 @@ int main(int argc, char* argv[]) {
             return 2;
         }
         const int exitCode = printDnsComparison(positional[0], timeoutMilliseconds, true, advanced, version);
+        return g_running ? exitCode : 130;
+    }
+    if (http) {
+        if (positional.size() != 1 || !pingkk::isHttpUrl(positional[0])) {
+            std::cerr << pingkk::text("HTTP 检测需要一个以 http:// 或 https:// 开头的完整网址。\n");
+            return 2;
+        }
+        const int exitCode = pingkk::cli::runHttpCheck(
+            positional[0], timeoutMilliseconds, advanced, version, []() { return g_running != 0; }, proxy);
         return g_running ? exitCode : 130;
     }
     if (positional.empty()) {
@@ -803,8 +879,8 @@ int main(int argc, char* argv[]) {
     }
 
     bool complete = true;
-    const std::vector<pingkk::ResolvedTarget> targets = resolveSelectedTargets(address, version, complete);
-    if (targets.empty()) return 2;
+    const std::vector<pingkk::ResolvedTarget> targets = resolveSelectedTargets(address, version, complete, continuous);
+    if (targets.empty()) return g_running ? 2 : 130;
     for (std::size_t index = 0; index < targets.size(); ++index) {
         const pingkk::ResolvedTarget& target = targets[index];
         if (advanced) {

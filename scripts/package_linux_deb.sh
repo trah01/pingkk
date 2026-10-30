@@ -57,7 +57,7 @@ Version: ${version}
 Section: net
 Priority: optional
 Architecture: ${architecture}
-Depends: ${dependencies}
+Depends: ${dependencies}, ca-certificates
 Installed-Size: ${installed_size}
 Maintainer: trah01
 Homepage: https://github.com/trah01/pingkk

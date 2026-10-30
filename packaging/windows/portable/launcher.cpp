@@ -114,6 +114,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         if (extractOnly) return 0;
 
         const fs::path executable = destination / L"pingkk-gui.exe";
+        wchar_t launcherPath[32768];
+        const DWORD launcherLength = GetModuleFileNameW(nullptr, launcherPath, 32768);
+        if (!launcherLength || launcherLength >= 32768) throw std::runtime_error("launcher path");
+        SetEnvironmentVariableW(L"PINGKK_PORTABLE_EXECUTABLE", launcherPath);
+        const std::wstring launcherPid = std::to_wstring(GetCurrentProcessId());
+        SetEnvironmentVariableW(L"PINGKK_PORTABLE_PID", launcherPid.c_str());
         std::wstring command = quote(executable.native()) + arguments;
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);

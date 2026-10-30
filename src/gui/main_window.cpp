@@ -1,6 +1,9 @@
 #include "main_window.h"
 #include "settings_dialog.h"
+#include "window_style.h"
+#include "timeout_spin_box.h"
 #include "pingkk/core.h"
+#include "pingkk/http_check.h"
 #include "pingkk/version.h"
 
 #include <QApplication>
@@ -38,6 +41,7 @@
 #include <QTextBlockFormat>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #ifdef Q_OS_WIN
@@ -56,8 +60,8 @@ protected:
         QComboBox::paintEvent(event);
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        QPen pen(isEnabled() ? QColor("#4f5b67") : QColor("#9aa1aa"));
-        pen.setWidthF(1.8);
+        QPen pen{QColor(pingkk::gui::colors::muted)};
+        pen.setWidthF(1.3);
         pen.setCapStyle(Qt::RoundCap);
         pen.setJoinStyle(Qt::RoundJoin);
         painter.setPen(pen);
@@ -65,9 +69,9 @@ protected:
         const qreal centerX = width() - inset;
         const qreal centerY = height() / 2.0;
         QPolygonF arrow;
-        arrow << QPointF(centerX - 5, centerY - 2)
-              << QPointF(centerX, centerY + 3)
-              << QPointF(centerX + 5, centerY - 2);
+        arrow << QPointF(centerX - 3.5, centerY - 1.5)
+              << QPointF(centerX, centerY + 2)
+              << QPointF(centerX + 3.5, centerY - 1.5);
         painter.drawPolyline(arrow);
     }
 
@@ -77,27 +81,6 @@ protected:
         popup->setFixedWidth(width());
         popup->move(mapToGlobal(QPoint(0, height() + 4)));
     }
-};
-
-class UnitSpinBox : public QSpinBox {
-public:
-    explicit UnitSpinBox(const QString& unit, QWidget* parent = 0)
-        : QSpinBox(parent), unitLabel_(new QLabel(unit, this)) {
-        unitLabel_->setObjectName("inputUnit");
-        unitLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        unitLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
-        lineEdit()->setTextMargins(0, 0, 32, 0);
-    }
-
-protected:
-    void resizeEvent(QResizeEvent* event) {
-        QSpinBox::resizeEvent(event);
-        unitLabel_->setGeometry(width() - 36, 0, 28, height());
-        unitLabel_->raise();
-    }
-
-private:
-    QLabel* unitLabel_;
 };
 
 enum LogTone {
@@ -245,11 +228,30 @@ void fitComboBoxText(QComboBox* comboBox) {
     option.initFrom(comboBox);
     option.currentText = comboBox->currentText();
     option.fontMetrics = comboBox->fontMetrics();
+    for (int index = 0; index < comboBox->count(); ++index) {
+        const QString text = comboBox->itemText(index);
+        if (option.fontMetrics.boundingRect(text).width() >
+            option.fontMetrics.boundingRect(option.currentText).width()) {
+            option.currentText = text;
+        }
+    }
     const QSize textSize(option.fontMetrics.boundingRect(option.currentText).width(),
                          option.fontMetrics.height());
     const QSize controlSize = comboBox->style()->sizeFromContents(
         QStyle::CT_ComboBox, &option, textSize, comboBox);
-    comboBox->setFixedWidth(qMax(controlSize.width(), textSize.width() + 48));
+    comboBox->setFixedWidth(qMax(controlSize.width(), textSize.width() + 36));
+}
+
+QString normalizedProxyAddress(const QString& value) {
+    const QUrl url(value.trimmed(), QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    if (!url.isValid() || url.host().isEmpty() || url.port() <= 0 || url.port() > 65535 ||
+        !url.userInfo().isEmpty() || (!url.path().isEmpty() && url.path() != "/") ||
+        url.hasQuery() || url.hasFragment() ||
+        (scheme != "http" && scheme != "https" && scheme != "socks5" && scheme != "socks5h")) {
+        return QString();
+    }
+    return QString::fromUtf8(url.toEncoded(QUrl::RemovePath));
 }
 
 bool normalizePorts(const QString& input, QString& normalized) {
@@ -376,12 +378,15 @@ MainWindow::MainWindow(QWidget* parent)
       reachableCount_(0),
       unreachableCount_(0),
       unknownCount_(0),
+      httpTimeoutMilliseconds_(10000),
+      otherTimeoutMilliseconds_(1000),
       process_(new QProcess(this)),
       lastOutputWasBlank_(false) {
     buildInterface();
     const QString localAddress = QString::fromStdString(pingkk::primaryLocalAddress());
     currentIpValue_->setText(localAddress == QString::fromUtf8("未知") ? "—" : localAddress);
     updateTexts();
+    targetEdit_->setFocus(Qt::OtherFocusReason);
 
     process_->setProcessChannelMode(QProcess::MergedChannels);
     connect(process_, SIGNAL(readyReadStandardOutput()), this, SLOT(readProcessOutput()));
@@ -389,13 +394,13 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::buildInterface() {
-    setMinimumSize(800, 480);
-    resize(800, 550);
+    setMinimumSize(800, 460);
+    resize(840, 540);
 
     QWidget* central = new QWidget(this);
     QVBoxLayout* root = new QVBoxLayout(central);
-    root->setContentsMargins(11, 10, 11, 11);
-    root->setSpacing(6);
+    root->setContentsMargins(20, 14, 20, 18);
+    root->setSpacing(10);
 
     QHBoxLayout* topBar = new QHBoxLayout;
     currentIpTitle_ = new QLabel;
@@ -404,10 +409,12 @@ void MainWindow::buildInterface() {
     currentIpValue_->setObjectName("addressLabel");
     languageCombo_ = new FixedPopupComboBox;
     languageCombo_->setObjectName("languageCombo");
+    languageCombo_->setProperty("compact", true);
     languageCombo_->addItem(QString::fromUtf8("中文"));
     languageCombo_->addItem("English");
     configureComboBox(languageCombo_);
     ipVersionCombo_ = new FixedPopupComboBox;
+    ipVersionCombo_->setProperty("compact", true);
     ipVersionCombo_->addItems(QStringList() << "IPv4" << "IPv6");
     configureComboBox(ipVersionCombo_);
     topBar->addWidget(currentIpTitle_);
@@ -415,67 +422,108 @@ void MainWindow::buildInterface() {
     topBar->addStretch();
     topBar->addWidget(ipVersionCombo_);
     topBar->addWidget(languageCombo_);
+    settingsButton_ = new QPushButton;
+    settingsButton_->setObjectName("textButton");
+    topBar->addWidget(settingsButton_);
 
     QFrame* controlPanel = new QFrame;
     controlPanel->setObjectName("controlPanel");
-    QGridLayout* controls = new QGridLayout(controlPanel);
-    controls->setContentsMargins(18, 16, 18, 16);
-    controls->setHorizontalSpacing(12);
-    controls->setVerticalSpacing(12);
+    QVBoxLayout* controls = new QVBoxLayout(controlPanel);
+    controls->setContentsMargins(0, 0, 0, 0);
+    controls->setSpacing(10);
 
     targetTitle_ = new QLabel;
+    targetTitle_->setObjectName("fieldLabel");
+    targetTitle_->setFixedWidth(56);
     targetEdit_ = new QLineEdit;
+    targetEdit_->setObjectName("targetInput");
     targetEdit_->setClearButtonEnabled(true);
+    httpSchemeCombo_ = new FixedPopupComboBox;
+    httpSchemeCombo_->setObjectName("httpSchemeCombo");
+    httpSchemeCombo_->addItems(QStringList() << "http://" << "https://");
+    httpSchemeCombo_->setFixedWidth(108);
+    httpSchemeCombo_->setVisible(false);
+    configureComboBox(httpSchemeCombo_);
     portTitle_ = new QLabel;
+    portTitle_->setObjectName("fieldLabel");
     portEdit_ = new QLineEdit("80");
     portEdit_->setClearButtonEnabled(true);
-    portEdit_->setFixedWidth(170);
+    portEdit_->setFixedWidth(128);
     protocolTitle_ = new QLabel;
+    protocolTitle_->setObjectName("fieldLabel");
+    protocolTitle_->setFixedWidth(56);
     protocolCombo_ = new FixedPopupComboBox;
     protocolCombo_->addItems(QStringList()
                              << "Ping" << "TCP" << "UDP" << "TCP + UDP"
                              << QString::fromUtf8("路由追踪")
                              << QString::fromUtf8("一键网络检查")
-                             << QString::fromUtf8("DNS 对比诊断"));
-    protocolCombo_->setFixedWidth(192);
+                             << QString::fromUtf8("DNS 对比诊断")
+                             << QString::fromUtf8("HTTP 检测"));
+    protocolCombo_->setFixedWidth(168);
     configureComboBox(protocolCombo_);
     timeoutTitle_ = new QLabel;
-    timeoutSpin_ = new UnitSpinBox("ms");
+    timeoutTitle_->setObjectName("fieldLabel");
+    timeoutSpin_ = new TimeoutSpinBox;
     timeoutSpin_->setRange(100, 60000);
     timeoutSpin_->setValue(1000);
-    timeoutSpin_->setFixedWidth(125);
-    timeoutSpin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    timeoutSpin_->setSuffix(" ms");
+    timeoutSpin_->setFixedWidth(112);
     singleButton_ = new QPushButton;
     singleButton_->setObjectName("primaryButton");
+    singleButton_->setMinimumWidth(96);
     continuousButton_ = new QPushButton;
+    continuousButton_->setMinimumWidth(96);
     stopButton_ = new QPushButton;
     stopButton_->setObjectName("dangerButton");
     stopButton_->setVisible(false);
 
-    controls->addWidget(targetTitle_, 0, 0);
-    controls->addWidget(targetEdit_, 0, 1, 1, 3);
-    controls->addWidget(portTitle_, 0, 4);
-    controls->addWidget(portEdit_, 0, 5);
-    controls->addWidget(protocolTitle_, 1, 0);
-    controls->addWidget(protocolCombo_, 1, 1);
-    controls->addWidget(timeoutTitle_, 1, 2);
-    controls->addWidget(timeoutSpin_, 1, 3);
+    QHBoxLayout* addressRow = new QHBoxLayout;
+    addressRow->setSpacing(10);
+    addressRow->addWidget(targetTitle_);
+    addressRow->addWidget(httpSchemeCombo_);
+    addressRow->addWidget(targetEdit_, 1);
+    addressRow->addWidget(portTitle_);
+    addressRow->addWidget(portEdit_);
+    controls->addLayout(addressRow);
+    QHBoxLayout* functionRow = new QHBoxLayout;
+    functionRow->setSpacing(10);
+    functionRow->addWidget(protocolTitle_);
+    functionRow->addWidget(protocolCombo_);
+    functionRow->addSpacing(6);
+    functionRow->addWidget(timeoutTitle_);
+    functionRow->addWidget(timeoutSpin_);
+    functionRow->addStretch();
     QHBoxLayout* testButtons = new QHBoxLayout;
     testButtons->setContentsMargins(0, 0, 0, 0);
-    testButtons->setSpacing(12);
-    testButtons->addWidget(singleButton_, 1);
-    testButtons->addWidget(continuousButton_, 1);
-    testButtons->addWidget(stopButton_, 1);
-    controls->addLayout(testButtons, 1, 4, 1, 2);
+    testButtons->setSpacing(8);
+    testButtons->addWidget(singleButton_);
+    testButtons->addWidget(continuousButton_);
+    testButtons->addWidget(stopButton_);
+    functionRow->addLayout(testButtons);
+    controls->addLayout(functionRow);
+    httpProxyRow_ = new QWidget;
+    QHBoxLayout* proxyRow = new QHBoxLayout(httpProxyRow_);
+    proxyRow->setContentsMargins(0, 0, 0, 0);
+    proxyRow->setSpacing(10);
+    useProxyCheckBox_ = new QCheckBox;
+    useProxyCheckBox_->setObjectName("useProxyCheckBox");
+    proxyEdit_ = new QLineEdit(QSettings().value("proxy/url").toString());
+    proxyEdit_->setClearButtonEnabled(true);
+    proxyEdit_->setPlaceholderText("http://127.0.0.1:7890");
+    proxyRow->addWidget(useProxyCheckBox_);
+    proxyRow->addWidget(proxyEdit_, 1);
+    httpProxyRow_->setVisible(false);
+    controls->addWidget(httpProxyRow_);
     QVBoxLayout* inputArea = new QVBoxLayout;
     inputArea->setContentsMargins(0, 0, 0, 0);
-    inputArea->setSpacing(8);
+    inputArea->setSpacing(14);
     inputArea->addLayout(topBar);
     inputArea->addWidget(controlPanel);
     root->addLayout(inputArea);
 
     QHBoxLayout* outputHeader = new QHBoxLayout;
-    outputHeader->setContentsMargins(0, 0, 0, 0);
+    outputHeader->setContentsMargins(0, 8, 0, 0);
+    outputHeader->setSpacing(10);
     outputTitle_ = new QLabel;
     outputTitle_->setObjectName("sectionTitle");
     advancedCheckBox_ = new QCheckBox;
@@ -484,12 +532,9 @@ void MainWindow::buildInterface() {
     exportButton_->setObjectName("textButton");
     clearButton_ = new QPushButton;
     clearButton_->setObjectName("textButton");
-    settingsButton_ = new QPushButton;
-    settingsButton_->setObjectName("textButton");
     outputHeader->addWidget(outputTitle_);
     outputHeader->addWidget(advancedCheckBox_);
     outputHeader->addStretch();
-    outputHeader->addWidget(settingsButton_);
     outputHeader->addWidget(exportButton_);
     outputHeader->addWidget(clearButton_);
     root->addLayout(outputHeader);
@@ -507,83 +552,56 @@ void MainWindow::buildInterface() {
     root->addLayout(outputArea, 1);
     setCentralWidget(central);
 
-    setStyleSheet(
-        "QMainWindow, QWidget { background: #ffffff; color: #18202a; "
-        "font-family: 'PingFang SC', 'Microsoft YaHei UI', sans-serif; "
-        "font-size: 14px; }"
-        "QLabel { background: transparent; }"
-        "QLabel:disabled { color: #8a939e; }"
-        "QFrame#controlPanel { background: #f8f9fb; border: 1px solid #dfe3e8; border-radius: 12px; }"
-        "QLabel#mutedLabel { color: #68717d; }"
-        "QLabel#inputUnit { color: #68717d; background: transparent; font-size: 14px; }"
-        "QLabel#addressLabel, QLabel#sectionTitle { font-weight: 600; color: #18202a; }"
-        "QCheckBox#advancedCheckBox { color: #394451; spacing: 7px; }"
-        "QCheckBox#advancedCheckBox:disabled { color: #9aa1aa; }"
-        "QLineEdit, QSpinBox, QComboBox { min-height: 36px; padding: 0 6px; "
-        "font-size: 15px; background: #ffffff; border: 1px solid #cbd1d8; border-radius: 7px; }"
-        "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid #1769aa; }"
-        "QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { "
-        "color: #8a939e; background: #eceff2; "
-        "border-color: #d7dce1; }"
-        "QComboBox { padding-right: 29px; }"
-        "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; "
-        "width: 26px; border: 0; background: transparent; }"
-        "QComboBox::down-arrow { image: none; }"
-        "QComboBox#languageCombo { min-height: 32px; padding: 0 25px 0 8px; }"
-        "QComboBox#languageCombo::drop-down { width: 24px; }"
-        "QListView#comboPopup { background: #ffffff; border: 1px solid #cbd1d8; "
-        "border-radius: 8px; padding: 5px; outline: 0; color: #18202a; }"
-        "QListView#comboPopup::item { min-height: 38px; padding: 0 8px; border-radius: 5px; }"
-        "QListView#comboPopup::item:hover { background: #f1f5f8; }"
-        "QListView#comboPopup::item:selected { background: #e7f1f8; color: #124d78; }"
-        "QPushButton { min-height: 36px; padding: 0 14px; border: 1px solid #cbd1d8; "
-        "border-radius: 7px; background: #ffffff; }"
-        "QPushButton:hover { background: #f1f3f5; }"
-        "QPushButton:pressed { background: #e6e9ed; }"
-        "QPushButton:disabled { color: #9aa1aa; background: #f1f2f4; }"
-        "QPushButton#primaryButton { color: #ffffff; background: #1769aa; border-color: #1769aa; font-weight: 600; }"
-        "QPushButton#primaryButton:hover { background: #13598f; }"
-        "QPushButton#dangerButton { color: #a42b2b; border-color: #d8a7a7; }"
-        "QPushButton#quietButton { min-height: 32px; color: #394451; background: transparent; }"
-        "QPushButton#textButton { min-height: 28px; border: 0; color: #1769aa; padding: 0 8px; }"
-        "QPlainTextEdit#outputEdit { background: #fbfcfd; border: 1px solid #dfe3e8; "
-        "border-radius: 10px; padding: 12px; "
-        "font-size: 14px; line-height: 1.5; selection-background-color: #cfe5f7; }"
-        "QPlainTextEdit#outputEdit QScrollBar:vertical { border: 0; background: #f1f3f5; "
-        "width: 10px; margin: 7px 2px 7px 0; border-radius: 5px; }"
-        "QPlainTextEdit#outputEdit QScrollBar::handle:vertical { background: #bcc4cd; "
-        "min-height: 36px; border-radius: 4px; }"
-        "QPlainTextEdit#outputEdit QScrollBar::handle:vertical:hover { background: #929eaa; }"
-        "QPlainTextEdit#outputEdit QScrollBar::add-line:vertical, "
-        "QPlainTextEdit#outputEdit QScrollBar::sub-line:vertical { height: 0; border: 0; }"
-        "QPlainTextEdit#outputEdit QScrollBar::add-page:vertical, "
-        "QPlainTextEdit#outputEdit QScrollBar::sub-page:vertical { background: transparent; }"
-        "QPlainTextEdit#outputEdit QScrollBar:horizontal { border: 0; background: #f1f3f5; "
-        "height: 10px; margin: 0 7px 2px 7px; border-radius: 5px; }"
-        "QPlainTextEdit#outputEdit QScrollBar::handle:horizontal { background: #bcc4cd; "
-        "min-width: 36px; border-radius: 4px; }"
-        "QPlainTextEdit#outputEdit QScrollBar::handle:horizontal:hover { background: #929eaa; }"
-        "QPlainTextEdit#outputEdit QScrollBar::add-line:horizontal, "
-        "QPlainTextEdit#outputEdit QScrollBar::sub-line:horizontal { width: 0; border: 0; }"
-        "QPlainTextEdit#outputEdit QScrollBar::add-page:horizontal, "
-        "QPlainTextEdit#outputEdit QScrollBar::sub-page:horizontal { background: transparent; }"
-    );
+    setStyleSheet(pingkk::gui::mainWindowStyle());
 
     connect(singleButton_, SIGNAL(clicked()), this, SLOT(startSingleTest()));
     connect(continuousButton_, SIGNAL(clicked()), this, SLOT(startContinuousTest()));
     connect(stopButton_, SIGNAL(clicked()), this, SLOT(stopTest()));
     connect(languageCombo_, SIGNAL(currentIndexChanged(int)), this, SLOT(changeLanguage(int)));
     connect(protocolCombo_, SIGNAL(currentIndexChanged(int)), this, SLOT(updateProtocolFields(int)));
+    connect(timeoutSpin_, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, [this](int value) {
+        if (protocolCombo_->currentIndex() == 7) httpTimeoutMilliseconds_ = value;
+        else otherTimeoutMilliseconds_ = value;
+    });
     connect(settingsButton_, SIGNAL(clicked()), this, SLOT(showSettings()));
     connect(ipVersionCombo_, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, [this](int) { fitComboBoxText(ipVersionCombo_); });
     connect(exportButton_, SIGNAL(clicked()), this, SLOT(copyReportImage()));
     connect(clearButton_, SIGNAL(clicked()), this, SLOT(clearOutput()));
     connect(targetEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
+    connect(targetEdit_, &QLineEdit::textChanged, this, [this]() {
+        if (protocolCombo_->currentIndex() == 7) splitHttpTarget();
+    });
     connect(portEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
+    connect(proxyEdit_, SIGNAL(returnPressed()), this, SLOT(startSingleTest()));
+    connect(useProxyCheckBox_, &QCheckBox::toggled, this, [this]() {
+        updateProtocolFields(protocolCombo_->currentIndex());
+    });
+    connect(proxyEdit_, &QLineEdit::editingFinished, this, [this]() {
+        const QString value = normalizedProxyAddress(proxyEdit_->text());
+        if (proxyEdit_->text().trimmed().isEmpty()) QSettings().remove("proxy/url");
+        else if (!value.isEmpty()) QSettings().setValue("proxy/url", value);
+    });
+    setTabOrder(httpSchemeCombo_, targetEdit_);
+    setTabOrder(targetEdit_, portEdit_);
+    setTabOrder(portEdit_, protocolCombo_);
+    setTabOrder(protocolCombo_, timeoutSpin_);
+    setTabOrder(timeoutSpin_, useProxyCheckBox_);
+    setTabOrder(useProxyCheckBox_, proxyEdit_);
+    setTabOrder(proxyEdit_, singleButton_);
+    setTabOrder(singleButton_, continuousButton_);
+    setTabOrder(continuousButton_, ipVersionCombo_);
+    setTabOrder(ipVersionCombo_, languageCombo_);
+    setTabOrder(languageCombo_, settingsButton_);
 }
 
 void MainWindow::updateTexts() {
+    useProxyCheckBox_->setText(english_ ? "Use proxy" : QString::fromUtf8("使用代理"));
+    proxyEdit_->setAccessibleName(english_ ? "Proxy address" : QString::fromUtf8("代理地址"));
+    proxyEdit_->setToolTip(english_ ? "HTTP, HTTPS, SOCKS5, or SOCKS5H (DNS through proxy)."
+                                   : QString::fromUtf8("支持 HTTP、HTTPS、SOCKS5、SOCKS5H（由代理解析域名）。"));
+    httpSchemeCombo_->setAccessibleName(english_ ? "HTTP protocol" : QString::fromUtf8("HTTP 协议"));
     ipVersionCombo_->setAccessibleName(english_ ? "IP version" : QString::fromUtf8("IP 版本"));
     setWindowTitle(english_ ? "pingkk - Network Test" : QString::fromUtf8("ping看看 - 网络测试"));
     currentIpTitle_->setText(english_ ? "Local IP" : QString::fromUtf8("当前 IP"));
@@ -599,6 +617,7 @@ void MainWindow::updateTexts() {
     protocolCombo_->setItemText(4, english_ ? "Traceroute" : QString::fromUtf8("路由追踪"));
     protocolCombo_->setItemText(5, english_ ? "Network check" : QString::fromUtf8("一键网络检查"));
     protocolCombo_->setItemText(6, english_ ? "DNS comparison" : QString::fromUtf8("DNS 对比诊断"));
+    protocolCombo_->setItemText(7, english_ ? "HTTP check" : QString::fromUtf8("HTTP 检测"));
     const int functionIndex = protocolCombo_->currentIndex();
     singleButton_->setText(
         functionIndex == 5
@@ -614,8 +633,8 @@ void MainWindow::updateTexts() {
     outputTitle_->setText(english_ ? "Output" : QString::fromUtf8("日志输出"));
     advancedCheckBox_->setText(english_ ? "Advanced output" : QString::fromUtf8("高级输出"));
     advancedCheckBox_->setToolTip(
-        english_ ? "Show packet size, loss, latency range, variation, and detailed statistics."
-                 : QString::fromUtf8("显示单包大小、丢包率、时延范围、波动和详细统计。"));
+        english_ ? "Show packet size, loss, latency range, variation, HTTP first-byte time, and detailed statistics."
+                 : QString::fromUtf8("显示单包大小、丢包率、时延范围、波动、HTTP 首字节耗时和详细统计。"));
     exportButton_->setText(english_ ? "Copy report" : QString::fromUtf8("一键导出"));
     clearButton_->setText(english_ ? "Clear" : QString::fromUtf8("清空"));
     updateProtocolFields(protocolCombo_->currentIndex());
@@ -648,10 +667,14 @@ void MainWindow::startContinuousTest() {
 void MainWindow::startTest(bool continuous) {
     if (process_->state() != QProcess::NotRunning) return;
     const int functionIndex = protocolCombo_->currentIndex();
-    const QString target = targetEdit_->text().trimmed();
+    QString target = targetEdit_->text().trimmed();
     if (target.isEmpty() && functionIndex != 5) {
         showInputError(english_ ? "Enter a target address." : QString::fromUtf8("请输入目标地址。"));
         return;
+    }
+    if (functionIndex == 7) {
+        splitHttpTarget();
+        target = httpSchemeCombo_->currentText() + targetEdit_->text().trimmed();
     }
     QString ports;
     if (functionIndex >= 1 && functionIndex <= 3 && !normalizePorts(portEdit_->text(), ports)) {
@@ -675,6 +698,19 @@ void MainWindow::startTest(bool continuous) {
         arguments << "--checkup";
     } else if (functionIndex == 6) {
         arguments << "--dns" << target;
+    } else if (functionIndex == 7) {
+        arguments << "--http" << target;
+        if (useProxyCheckBox_->isChecked()) {
+            const QString proxy = normalizedProxyAddress(proxyEdit_->text());
+            if (proxy.isEmpty()) {
+                showInputError(english_ ? "Enter a proxy address and port, for example http://127.0.0.1:7890."
+                    : QString::fromUtf8("请填写代理协议、地址和端口，例如 http://127.0.0.1:7890。"));
+                proxyEdit_->setFocus();
+                return;
+            }
+            QSettings().setValue("proxy/url", proxy);
+            arguments << "--proxy" << proxy;
+        }
     } else if (functionIndex == 4) {
         arguments << "-r" << target;
     } else {
@@ -789,7 +825,7 @@ void MainWindow::processFinished(int exitCode) {
         summary = english_ ? "Test ended with an error."
                            : QString::fromUtf8("测试异常结束，请检查上方信息。");
     } else if (protocolCombo_->currentIndex() >= 5) {
-        // 一键检查和 DNS 对比已经由命令行输出完整结论，不重复追加通用总结。
+        // 检查功能已由命令行输出完整结论，不重复追加通用总结。
         summary.clear();
     } else {
         const int total = reachableCount_ + unreachableCount_ + unknownCount_;
@@ -831,25 +867,58 @@ void MainWindow::changeLanguage(int index) {
     updateTexts();
 }
 
+void MainWindow::splitHttpTarget() {
+    const QString target = targetEdit_->text().trimmed();
+    for (int index = 0; index < httpSchemeCombo_->count(); ++index) {
+        const QString scheme = httpSchemeCombo_->itemText(index);
+        if (target.startsWith(scheme, Qt::CaseInsensitive)) {
+            httpSchemeCombo_->setCurrentIndex(index);
+            const int cursor = targetEdit_->cursorPosition();
+            targetEdit_->setText(target.mid(scheme.size()));
+            targetEdit_->setCursorPosition(qMax(0, cursor - scheme.size()));
+            break;
+        }
+    }
+}
+
 void MainWindow::updateProtocolFields(int index) {
     const bool needsPort = index >= 1 && index <= 3;
     const bool route = index == 4;
     const bool checkup = index == 5;
     const bool dnsComparison = index == 6;
+    const bool http = index == 7;
     const bool idle = singleButton_->isEnabled();
+    if (http != !httpSchemeCombo_->isHidden()) {
+        timeoutSpin_->setValue(http ? httpTimeoutMilliseconds_ : otherTimeoutMilliseconds_);
+    }
+    if (http) {
+        splitHttpTarget();
+    } else if (!httpSchemeCombo_->isHidden() && !targetEdit_->text().trimmed().isEmpty()) {
+        targetEdit_->setText(httpSchemeCombo_->currentText() + targetEdit_->text().trimmed());
+    }
+    httpSchemeCombo_->setVisible(http);
+    httpSchemeCombo_->setEnabled(http && idle);
+    httpProxyRow_->setVisible(http);
+    useProxyCheckBox_->setEnabled(http && idle);
+    proxyEdit_->setEnabled(http && idle && useProxyCheckBox_->isChecked());
     portTitle_->setEnabled(needsPort);
+    portTitle_->setVisible(needsPort);
+    portEdit_->setVisible(needsPort);
     portEdit_->setEnabled(needsPort && idle);
+    portEdit_->setClearButtonEnabled(needsPort && idle);
     targetTitle_->setEnabled(!checkup);
     targetEdit_->setEnabled(!checkup && idle);
+    targetEdit_->setClearButtonEnabled(!checkup && idle);
     targetEdit_->setPlaceholderText(
-        dnsComparison
+        http ? QString("example.com")
+        : dnsComparison
             ? (english_ ? "Domain name, for example example.com"
                         : QString::fromUtf8("输入域名，例如 example.com"))
             : checkup
                   ? (english_ ? "No target required" : QString::fromUtf8("无需输入目标地址"))
                   : (english_ ? "IP, domain, or URL" : QString::fromUtf8("IP、域名或完整网址")));
-    continuousButton_->setEnabled(!route && !checkup && !dnsComparison && idle);
-    continuousButton_->setVisible(idle && !checkup && !dnsComparison);
+    continuousButton_->setEnabled(!route && !checkup && !dnsComparison && !http && idle);
+    continuousButton_->setVisible(idle && !checkup && !dnsComparison && !http);
     singleButton_->setText(
         checkup
             ? (english_ ? "Start check" : QString::fromUtf8("开始检查"))

@@ -7,6 +7,7 @@
 支持：
 
 - TCP、UDP 端口测试
+- HTTP / HTTPS 检测：状态码、目标 IP、连接耗时、证书校验和重定向
 - Ping 和路由追踪
 - 一键网络检查：检查本机出口、默认网关、DNS、代理和 HTTPS 直连
 - DNS 对比诊断：对比系统 DNS、当前 DNS、阿里 DNS 和腾讯 DNS
@@ -116,11 +117,15 @@ xattr -dr com.apple.quarantine pingkk.app
 
 图形界面右上角选择 `English` 后，后续测试的日志、诊断信息及报告使用英文。命令行默认使用中文，可添加 `--lang en` 切换英文，例如 `pingkk example.com 443 --lang en` 或 `pingkk --help --lang en`；使用 `--lang zh` 切回中文。
 
-运行 `pingkk gui` 打开已安装的图形界面；未找到时会提示前往 GitHub Releases 或 `https://he.sb/pingkk/` 下载图形界面包或安装包。
+运行 `pingkk gui` 打开已安装的图形界面；未安装时会询问是否下载安装包，直接回车默认同意，输入 `n` 取消。程序自动选择当前系统和处理器架构的发布包，优先从 GitHub 下载，不可用时改用官网，并校验 SHA256。下载文件保留在用户下载目录：Windows 打开安装向导，Debian 系 Linux 打开 DEB 安装包，由用户确认安装；macOS 解压后打开文件夹，将 `pingkk.app` 拖入 `Applications` 即可安装。其他 Linux 系统提供便携包，解压后运行 `run-pingkk.sh`。非交互输入结束时直接取消。
 
 运行 `pingkk update` 升级当前 CLI。默认检查 GitHub 最新正式 Release，连接探测（含重定向）的总超时为 1000ms；超时、连接失败或附件下载失败时，自动切换到 `https://he.sb/pingkk/latest/`。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
 
-命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。命令行确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致；图形界面在“设置”中检查更新，发现新版本后提供对应来源的下载入口。
+命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。命令行确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致。
+
+图形界面在“设置”中点击“检查更新”，发现新版本后点击“下载更新”。应用会选择对应系统、架构和兼容版本的完整发行包，核对 SHA256 及包内程序版本；准备完成后点击“重启并更新”，由更新程序等待旧进程退出、安装更新并重新打开应用。下载失败或校验失败时，当前应用继续运行。下载同一版本的 GitHub 附件失败时切换官网版本目录，不混用其他版本。
+
+macOS 更新整个 `.app`；Windows 单文件版更新原始便携程序，解压版替换完整程序目录，安装版调用系统安装程序；Linux 便携版替换完整目录，DEB 通过 `pkexec` 和 `apt-get` 更新。系统目录需要权限时会出现系统授权窗口。便携版替换失败时尝试恢复旧文件，安装版由系统安装工具处理。重启后显示更新结果，日志保存在应用缓存目录的 `updates/pingkk-update-*/apply.log`。开发构建及未识别的安装方式需使用官方发行包。
 
 更新会替换当前 CLI 的实际文件路径，macOS / Linux 的系统目录可能需要 `sudo`，Windows 的系统目录需要管理员权限。macOS 应用包内的 CLI 需通过图形界面包整体更新，避免破坏应用签名。macOS / Linux 需要系统已有的 `curl`、解压及 SHA256 工具；Windows 需要 PowerShell 5.1 或更高版本。
 
@@ -138,6 +143,11 @@ pingkk example.com 53 all
 
 # 测试多个端口
 pingkk example.com 80,443 tcp
+
+# HTTP / HTTPS 检测，保留完整路径和查询参数
+pingkk --http https://example.com
+pingkk --http 'https://example.com/path?key=value' --timeout 5000
+pingkk --http http://example.com
 
 # 持续测试
 pingkk -t example.com 443 tcp
@@ -174,6 +184,14 @@ pingkk --timeout 1000 example.com 443 tcp
 默认只测试 IPv4；`-v6` 只测试 IPv6，适用于端口、Ping、路由追踪、DNS 对比和网络检查。图形界面可在顶部选择 `IPv4` 或 `IPv6`，每次只测试所选协议。IPv6 网络检查显示前缀长度，不使用 IPv4 子网掩码。
 
 UDP 端口只有在收到目标响应时才会显示为连通；没有响应时显示“状态未知”。
+
+HTTP 检测使用 `pingkk --http <网址>`，网址需以 `http://` 或 `https://` 开头。检测发送 GET 请求，不显示或保存响应正文；默认直接访问目标，不使用环境代理。图形界面在“功能选择”中选择“HTTP 检测”，通过地址框前的下拉框选择协议（默认 `http://`），输入地址后点击“单次测试”；粘贴完整网址时会自动选择对应协议。
+
+在 HTTP 检测界面勾选“使用代理”，在旁边填写代理地址，例如 `http://127.0.0.1:7890`，地址会自动记住。支持 `http://`、`https://`、`socks5://` 和 `socks5h://`，地址需包含端口；`socks5h://` 由代理解析目标域名。取消勾选即使用直连。命令行可使用 `pingkk --http https://example.com --proxy http://127.0.0.1:7890`。代理仅用于 HTTP/HTTPS 检测，连接失败不会自动改为直连；代理模式输出的“代理 IP”是实际连接的代理地址，DNS 和连接耗时受代理影响。
+
+HTTP 检测支持 `--timeout`、`-v6`、`--lang` 和高级输出，不支持持续测试。默认总超时为 10000ms，覆盖所有重定向及正文接收；最多跟随 10 次 HTTP(S) 重定向。输出 DNS、建立连接、TLS 握手和总耗时，发生重定向时按各次请求累计，高级输出额外显示收到最后一次请求首字节的总耗时。HTTPS 默认校验证书及域名，失败时不跳过校验。HTTP 2xx / 3xx 返回退出码 0，HTTP 4xx / 5xx、网络错误及重定向失败返回 1，参数错误返回 2。
+
+HTTP 检测使用 libcurl（宽松的 curl 许可证，见 `licenses/curl.txt`）。macOS 使用系统 libcurl；Windows 构建通过 vcpkg 安装 `curl[core,schannel]` 静态库，使用系统证书库。Linux 构建需要 `libcurl4-openssl-dev`，CLI 运行需要 `libcurl4` 和 `ca-certificates`（Debian / Ubuntu 可运行 `sudo apt install libcurl4 ca-certificates`）；DEB 自动声明 libcurl 运行依赖。
 
 ## 许可证
 

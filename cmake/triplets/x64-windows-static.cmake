@@ -1,0 +1,5 @@
+# 与兼容版 CLI 使用同一套工具链和静态运行库，现代版可链接 v142 库。
+set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_CRT_LINKAGE static)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_PLATFORM_TOOLSET v142)

@@ -1,5 +1,10 @@
 <RCC>
     <qresource prefix="/icons">
         <file alias="pingkk-icon.png">../../assets/pingkk-icon.png</file>
+        <file alias="pingkk-icon-rounded.png">../../assets/pingkk-icon-rounded.png</file>
+    </qresource>
+    <qresource prefix="/updater">
+        <file alias="update_unix.sh">update_unix.sh</file>
+        <file alias="update_windows.ps1">update_windows.ps1</file>
     </qresource>
 </RCC>

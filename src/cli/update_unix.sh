@@ -5,6 +5,7 @@ set -eu
 target=$1
 current_version=$2
 language=$3
+mode=${4:-update}
 staged=
 work_dir=
 say() {
@@ -21,7 +22,8 @@ for tool in curl uname mktemp awk sed tr mkdir chmod mv install; do
     command -v "${tool}" >/dev/null 2>&1 || fail "缺少工具：${tool}。" "Required tool not found: ${tool}."
 done
 case "${target}" in
-    /*.app/Contents/MacOS/*) fail '请下载图形界面包更新应用包中的程序。' 'Download the GUI package to update a program inside an app bundle.' ;;
+    /*.app/Contents/MacOS/*)
+        [ "${mode}" = gui ] || fail '请下载图形界面包更新应用包中的程序。' 'Download the GUI package to update a program inside an app bundle.' ;;
     /*) ;;
     *) fail '无法确定当前程序的绝对路径。' 'Unable to determine the absolute path of the current program.' ;;
 esac
@@ -64,9 +66,23 @@ fi
 work_dir=$(mktemp -d "${0}.work.XXXXXXXX") ||
     fail '无法创建更新目录，请检查程序目录或用户目录的写入权限。' 'Unable to create the update directory. Check write permissions for the program or user directory.'
 asset="pingkk-${platform}-cli.${extension}"
+if [ "${mode}" = gui ]; then
+    case "${system}" in
+        Darwin) asset="pingkk-${platform}-gui.zip" ;;
+        Linux)
+            if command -v dpkg-deb >/dev/null 2>&1; then asset="pingkk-${platform}-installer.deb"
+            else asset="pingkk-${platform}-portable.tar.xz"
+            fi
+            ;;
+    esac
+fi
 github=https://github.com/trah01/pingkk
 mirror=https://he.sb/pingkk/latest
-say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
+if [ "${mode}" = gui ]; then
+    say "正在查找图形界面安装包：${asset}……" "Looking for the GUI package: ${asset}..."
+else
+    say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
+fi
 # The entire HEAD request, including redirects, must finish within 1000ms.
 release_url=$(curl --proto '=https' --proto-redir '=https' -fsSLI \
     --connect-timeout 1 --max-time 1 -o /dev/null -w '%{url_effective}' \
@@ -96,7 +112,7 @@ no_update_needed() {
         say "下载源版本 $1 较旧，保留当前版本 ${current_version}。" "The source version $1 is older; keeping current version ${current_version}."
     fi
 }
-if [ "${source}" = github ] && ! version_is_newer "${tag#v}"; then
+if [ "${mode}" != gui ] && [ "${source}" = github ] && ! version_is_newer "${tag#v}"; then
     no_update_needed "${tag#v}"
     exit 0
 fi
@@ -122,7 +138,7 @@ if [ "${source}" = github ]; then
     fi
 fi
 if [ "${source}" = mirror ]; then
-    say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 更新。' 'GitHub is unavailable; using https://he.sb/pingkk/latest/.'
+    say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 下载。' 'GitHub is unavailable; downloading from https://he.sb/pingkk/latest/.'
     curl --proto '=https' --proto-redir '=https' -fsSL \
         --connect-timeout 10 --max-time 10 -o "${work_dir}/version.json" "${mirror}/version.json" ||
         fail '无法获取官网版本信息，当前程序未改动。' 'Unable to fetch the official version information. The current program was not changed.'
@@ -131,7 +147,7 @@ if [ "${source}" = mirror ]; then
     tag=$(tr -d '\r\n' < "${work_dir}/version.json" | sed -n \
         's/^[[:space:]]*{[[:space:]]*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)"[[:space:]]*}[[:space:]]*$/\1/p')
     [ -n "${tag}" ] || fail '官网版本信息格式不正确，当前程序未改动。' 'Invalid official version information. The current program was not changed.'
-    if ! version_is_newer "${tag}"; then
+    if [ "${mode}" != gui ] && ! version_is_newer "${tag}"; then
         no_update_needed "${tag}"
         exit 0
     fi
@@ -145,6 +161,40 @@ else actual=$(shasum -a 256 "${work_dir}/${asset}" | awk '{print $1}')
 fi
 expected=$(printf '%s' "${expected}" | tr 'A-F' 'a-f')
 [ "${actual}" = "${expected}" ] || fail 'SHA256 校验失败，当前程序未改动。' 'SHA256 verification failed. The current program was not changed.'
+
+if [ "${mode}" = gui ]; then
+    # 保留已校验的安装文件，供图形安装器异步读取，不替换当前 CLI。
+    downloads=${HOME:-}/Downloads
+    if [ "${system}" = Linux ] && command -v xdg-user-dir >/dev/null 2>&1; then
+        configured_downloads=$(xdg-user-dir DOWNLOAD 2>/dev/null || true)
+        [ -z "${configured_downloads}" ] || downloads=${configured_downloads}
+    fi
+    case "${downloads}" in
+        /*) ;;
+        *) fail '无法确定下载目录。' 'Unable to determine the Downloads directory.' ;;
+    esac
+    mkdir -p "${downloads}"
+    destination=$(mktemp -d "${downloads}/pingkk-install.XXXXXXXX")
+    package="${destination}/${asset}"
+    mv "${work_dir}/${asset}" "${package}"
+    say "安装包已下载并通过 SHA256 校验：${package}" "Package downloaded and SHA256 verified: ${package}"
+    if [ "${system}" = Darwin ]; then
+        /usr/bin/ditto -x -k "${package}" "${destination}" || fail '解压应用失败。' 'Unable to extract the application.'
+        [ -d "${destination}/pingkk.app" ] && [ ! -L "${destination}/pingkk.app" ] ||
+            fail '发布包中缺少 pingkk.app。' 'The release package does not contain pingkk.app.'
+        ln -s /Applications "${destination}/Applications"
+        say '请将 pingkk.app 拖入 Applications 文件夹完成安装。' 'Drag pingkk.app into Applications to install.'
+        /usr/bin/open "${destination}" || fail '无法打开下载目录，请手动打开上述路径。' 'Unable to open the download folder. Open the path above manually.'
+    else
+        case "${asset}" in
+            *.deb) say '请在打开的安装器中确认安装。' 'Confirm installation in the package installer.' ;;
+            *) say '当前系统提供便携包，请解压后运行 run-pingkk.sh。' 'A portable package is available for this system. Extract it and run run-pingkk.sh.' ;;
+        esac
+        command -v xdg-open >/dev/null 2>&1 && xdg-open "${package}" ||
+            fail '无法打开安装包，请在桌面环境中手动打开上述路径。' 'Unable to open the package. Open the path above in a desktop session.'
+    fi
+    exit 0
+fi
 
 mkdir "${work_dir}/unpacked"
 if [ "${extension}" = zip ]; then unzip -q "${work_dir}/${asset}" -d "${work_dir}/unpacked"

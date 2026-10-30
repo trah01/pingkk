@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Target,
     [Parameter(Mandatory=$true)][string]$CurrentVersion,
     [Parameter(Mandatory=$true)][int]$ParentPid,
-    [switch]$English
+    [switch]$English,
+    [switch]$GuiInstaller
 )
 $ErrorActionPreference = 'Stop'
 $workDir = $null
@@ -108,12 +109,17 @@ try {
         default { throw "Unsupported Windows architecture: $architecture" }
     }
     $asset = "pingkk-$platform-cli.zip"
+    if ($GuiInstaller) { $asset = "pingkk-$platform-setup.exe" }
     # The launcher has already selected a writable installation or user directory.
     $workDir = $PSCommandPath + '.work-' + [Guid]::NewGuid().ToString('N')
     New-Item -ItemType Directory -Path $workDir | Out-Null
-    Say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
+    if ($GuiInstaller) {
+        Say "正在查找图形界面安装包：${asset}……" "Looking for the GUI installer: $asset..."
+    } else {
+        Say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
+    }
     $tag = Get-GitHubRelease
-    if ($tag -and [Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
+    if (-not $GuiInstaller -and $tag -and [Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
         No-UpdateNeeded $tag.TrimStart('v')
         return
     }
@@ -132,13 +138,13 @@ try {
     }
     if ($source -eq 'mirror') {
         $base = 'https://he.sb/pingkk/latest'
-        Say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 更新。' 'GitHub is unavailable; using https://he.sb/pingkk/latest/.'
+        Say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 下载。' 'GitHub is unavailable; downloading from https://he.sb/pingkk/latest/.'
         $manifest = Join-Path $workDir 'version.json'
         Download "$base/version.json" $manifest 10
         $metadata = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
         $tag = [string]$metadata.tag_name
         if ($tag -notmatch '^v?\d+\.\d+\.\d+$') { throw 'Invalid official version information.' }
-        if ([Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
+        if (-not $GuiInstaller -and [Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
             No-UpdateNeeded $tag.TrimStart('v')
             return
         }
@@ -156,6 +162,20 @@ try {
     $archive = Join-Path $workDir $asset
     if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne $expected) {
         throw 'SHA256 verification failed. The current program was not changed.'
+    }
+    if ($GuiInstaller) {
+        # 使用 Windows 的下载目录（支持用户重定向），保留安装器供用户交互安装。
+        $userFolders = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+        $downloads = [Environment]::ExpandEnvironmentVariables([string]$userFolders.'{374DE290-123F-4565-9164-39C4925E467B}')
+        if (-not $downloads) { $downloads = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Downloads' }
+        $destination = Join-Path $downloads ('pingkk-install-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $destination -Force | Out-Null
+        $package = Join-Path $destination $asset
+        Move-Item -LiteralPath $archive -Destination $package
+        Say "安装包已下载并通过 SHA256 校验：$package" "Installer downloaded and SHA256 verified: $package"
+        Say '请在打开的安装向导中完成安装。' 'Complete installation in the setup wizard.'
+        Start-Process -FilePath $package -Verb Open
+        return
     }
     $unpacked = Join-Path $workDir 'unpacked'
     Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
@@ -205,7 +225,11 @@ try {
     }
     Say "更新完成：$newVersion" "Updated to $newVersion."
 } catch {
-    Say "更新失败：$($_.Exception.Message)" "Update failed: $($_.Exception.Message)"
+    if ($GuiInstaller) {
+        Say "安装包下载或打开失败：$($_.Exception.Message)" "Unable to download or open the installer: $($_.Exception.Message)"
+    } else {
+        Say "更新失败：$($_.Exception.Message)" "Update failed: $($_.Exception.Message)"
+    }
     exit 1
 } finally {
     [Net.ServicePointManager]::SecurityProtocol = $originalTls

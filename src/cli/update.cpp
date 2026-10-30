@@ -4,6 +4,8 @@
 #include "pingkk/updater_scripts.h"
 
 #include <cstring>
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <string>
@@ -95,7 +97,7 @@ bool writeScript(int file, const char* script) {
 
 }  // namespace
 
-int updateCommand() {
+static int runReleaseHelper(bool guiInstaller) {
 #ifdef _WIN32
     std::vector<wchar_t> executable(32768, 0);
     const DWORD length = GetModuleFileNameW(NULL, &executable[0], static_cast<DWORD>(executable.size()));
@@ -151,6 +153,7 @@ int updateCommand() {
         L" -CurrentVersion " + std::wstring(PINGKK_VERSION, PINGKK_VERSION + std::strlen(PINGKK_VERSION)) +
         L" -ParentPid " + std::to_wstring(GetCurrentProcessId());
     if (isEnglish()) command += L" -English";
+    if (guiInstaller) command += L" -GuiInstaller";
     std::vector<wchar_t> raw(command.begin(), command.end());
     raw.push_back(0);
     STARTUPINFOW startup = {};
@@ -197,6 +200,7 @@ int updateCommand() {
     const pid_t child = fork();
     if (child == 0) {
         execl("/bin/sh", "sh", &path[0], target.c_str(), PINGKK_VERSION, isEnglish() ? "en" : "zh",
+              guiInstaller ? "gui" : "update",
               static_cast<char*>(NULL));
         _exit(127);
     }
@@ -209,6 +213,38 @@ int updateCommand() {
     if (completed < 0) return preparationError();
     return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 #endif
+}
+
+int updateCommand() {
+    return runReleaseHelper(false);
+}
+
+int installGuiCommand() {
+    std::cout << text("未安装图形界面。是否下载安装包并打开？[Y/n] ");
+    std::string answer;
+    for (;;) {
+        if (!std::getline(std::cin, answer)) {
+            std::cout << "\n" << text("已取消安装。\n");
+            return 0;
+        }
+        const std::string::size_type first = answer.find_first_not_of(" \t\r");
+        const std::string::size_type last = answer.find_last_not_of(" \t\r");
+        answer = first == std::string::npos ? std::string() : answer.substr(first, last - first + 1);
+        std::transform(answer.begin(), answer.end(), answer.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        if (answer.empty() || answer == "y" || answer == "yes") break;
+        if (answer == "n" || answer == "no") {
+            std::cout << text("已取消安装。\n");
+            return 0;
+        }
+        std::cout << text("请输入 y 或 n，直接回车默认安装：[Y/n] ");
+    }
+    const int status = runReleaseHelper(true);
+    if (status != 0) {
+        std::cerr << text("可手动下载安装包：\n")
+                  << PINGKK_PROJECT_URL "/releases\nhttps://he.sb/pingkk/\n";
+    }
+    return status;
 }
 
 } }

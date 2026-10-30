@@ -35,6 +35,7 @@ private slots:
 private:
     void buildInterface();
     void updateTexts();
+    void splitHttpTarget();
     void startTest(bool continuous);
     QString commandPath() const;
     QString protocolArgument() const;
@@ -48,6 +49,8 @@ private:
     int reachableCount_;
     int unreachableCount_;
     int unknownCount_;
+    int httpTimeoutMilliseconds_;
+    int otherTimeoutMilliseconds_;
     QLabel* currentIpTitle_;
     QLabel* currentIpValue_;
     QLabel* targetTitle_;
@@ -56,12 +59,16 @@ private:
     QLabel* timeoutTitle_;
     QLabel* outputTitle_;
     QLineEdit* targetEdit_;
+    QLineEdit* proxyEdit_;
+    QWidget* httpProxyRow_;
     QLineEdit* portEdit_;
     QSpinBox* timeoutSpin_;
     QComboBox* protocolCombo_;
+    QComboBox* httpSchemeCombo_;
     QComboBox* languageCombo_;
     QComboBox* ipVersionCombo_;
     QCheckBox* advancedCheckBox_;
+    QCheckBox* useProxyCheckBox_;
     QPushButton* singleButton_;
     QPushButton* continuousButton_;
     QPushButton* stopButton_;

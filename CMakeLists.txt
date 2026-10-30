@@ -48,11 +48,20 @@ add_library(pingkk_core
     src/diagnostics.cpp
     src/diagnostics_ipv6.cpp
     src/network_check.cpp
+    src/http_check.cpp
 )
 target_include_directories(pingkk_core PUBLIC
     include
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
+
+if(APPLE)
+    # 使用系统 SDK 的 libcurl，独立 CLI 不依赖 Homebrew 运行库。
+    target_link_libraries(pingkk_core PUBLIC curl)
+else()
+    find_package(CURL 7.52 REQUIRED)
+    target_link_libraries(pingkk_core PUBLIC CURL::libcurl)
+endif()
 
 if(WIN32)
     if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
@@ -72,13 +81,14 @@ if(APPLE)
     )
 endif()
 
-add_executable(pingkk src/cli/main.cpp src/cli/arguments.cpp src/cli/update.cpp)
+add_executable(pingkk src/cli/main.cpp src/cli/arguments.cpp src/cli/update.cpp src/cli/http.cpp)
 target_link_libraries(pingkk PRIVATE pingkk_core)
 if(APPLE)
     find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
     target_link_libraries(pingkk PRIVATE ${CORESERVICES_FRAMEWORK})
 endif()
 if(WIN32)
+    target_link_libraries(pingkk PRIVATE advapi32)
     target_sources(pingkk PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}/generated/pingkk-version.rc
     )
@@ -102,10 +112,18 @@ if(PINGKK_BUILD_GUI)
             src/gui/main.cpp
             src/gui/main_window.cpp
             src/gui/main_window.h
+            src/gui/window_style.cpp
+            src/gui/window_style.h
+            src/gui/timeout_spin_box.cpp
+            src/gui/timeout_spin_box.h
             src/gui/settings_dialog.cpp
             src/gui/settings_dialog.h
             src/gui/update_check.cpp
             src/gui/update_check.h
+            src/gui/update_transfer.cpp
+            src/gui/update_transfer.h
+            src/gui/update_installer.cpp
+            src/gui/update_installer.h
             src/gui/resources.qrc
         )
         if(WIN32)

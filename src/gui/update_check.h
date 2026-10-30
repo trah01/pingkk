@@ -6,8 +6,6 @@
 #include <QUrl>
 #include <functional>
 
-class QNetworkAccessManager;
-
 class UpdateCheck : public QObject {
 public:
     typedef std::function<void(const QString&, const QUrl&)> Completion;
@@ -16,7 +14,6 @@ public:
 
 private:
     void checkSource(bool github, const Completion& completion);
-    QNetworkAccessManager* network_;
 };
 
 #endif

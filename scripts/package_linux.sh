@@ -34,10 +34,21 @@ copy_dependencies() {
                 ;;
         esac
         cp -L -n "${library}" "${gui_output_dir}/lib/"
+        # 随运行库保留 Debian 包提供的第三方许可说明，包括 libcurl 依赖。
+        local package
+        package="$(dpkg-query -S "$(readlink -f "${library}")" 2>/dev/null |
+            sed -n '1s/: \/.*//p' || true)"
+        package="${package%%:*}"
+        if [ -n "${package}" ] && [ -f "/usr/share/doc/${package}/copyright" ]; then
+            mkdir -p "${gui_output_dir}/licenses/third-party"
+            cp -L "/usr/share/doc/${package}/copyright" \
+                "${gui_output_dir}/licenses/third-party/${package}.txt"
+        fi
     done
 }
 
 copy_dependencies "${gui_output_dir}/bin/pingkk-gui"
+copy_dependencies "${gui_output_dir}/bin/pingkk"
 copy_dependencies "${gui_output_dir}/plugins/platforms/libqxcb.so"
 
 # 递归补齐 Qt 和插件的间接依赖，直到不再产生新文件。
@@ -80,4 +91,5 @@ cp "${gui_output_dir}/bin/pingkk" "${cli_output_dir}/bin/pingkk"
 cp -R licenses "${cli_output_dir}/licenses"
 cat > "${cli_output_dir}/使用说明.txt" <<'TEXT'
 命令行：运行 ./bin/pingkk --help
+需要系统安装 libcurl 和 CA 证书（Debian / Ubuntu：sudo apt install libcurl4 ca-certificates）。
 TEXT

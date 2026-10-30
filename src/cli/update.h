@@ -2,5 +2,6 @@
 #define PINGKK_CLI_UPDATE_H
 namespace pingkk { namespace cli {
 int updateCommand();
+int installGuiCommand();
 } }
 #endif
