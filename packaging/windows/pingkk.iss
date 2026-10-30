@@ -5,7 +5,7 @@
   #define OutputDir "..\.."
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.7"
+  #define AppVersion "1.0.7"
 #endif
 
 #ifndef TargetArch
