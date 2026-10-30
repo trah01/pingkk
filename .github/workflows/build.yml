@@ -49,7 +49,7 @@ jobs:
       - name: 配置与构建
         shell: pwsh
         run: |
-          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install 'curl[core,schannel]:x64-windows-static' `
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install 'curl[core,ssl]:x64-windows-static' `
             --overlay-triplets="$pwd/cmake/triplets" --host-triplet=x64-windows-static
           if ($LASTEXITCODE -ne 0) { throw "libcurl installation failed: $LASTEXITCODE" }
           cmake -S . -B build -A x64 -T ${{ matrix.toolset }} `
@@ -150,7 +150,7 @@ jobs:
       - name: 配置与构建
         shell: pwsh
         run: |
-          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install 'curl[core,schannel]:arm64-windows-static' `
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install 'curl[core,ssl]:arm64-windows-static' `
             --host-triplet=x64-windows-static
           if ($LASTEXITCODE -ne 0) { throw "libcurl installation failed: $LASTEXITCODE" }
           cmake -S . -B build -A ARM64 `

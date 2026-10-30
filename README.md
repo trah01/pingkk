@@ -191,7 +191,7 @@ HTTP 检测使用 `pingkk --http <网址>`，网址需以 `http://` 或 `https:/
 
 HTTP 检测支持 `--timeout`、`-v6`、`--lang` 和高级输出，不支持持续测试。默认总超时为 10000ms，覆盖所有重定向及正文接收；最多跟随 10 次 HTTP(S) 重定向。输出 DNS、建立连接、TLS 握手和总耗时，发生重定向时按各次请求累计，高级输出额外显示收到最后一次请求首字节的总耗时。HTTPS 默认校验证书及域名，失败时不跳过校验。HTTP 2xx / 3xx 返回退出码 0，HTTP 4xx / 5xx、网络错误及重定向失败返回 1，参数错误返回 2。
 
-HTTP 检测使用 libcurl（宽松的 curl 许可证，见 `licenses/curl.txt`）。macOS 使用系统 libcurl；Windows 构建通过 vcpkg 安装 `curl[core,schannel]` 静态库，使用系统证书库。Linux 构建需要 `libcurl4-openssl-dev`，CLI 运行需要 `libcurl4` 和 `ca-certificates`（Debian / Ubuntu 可运行 `sudo apt install libcurl4 ca-certificates`）；DEB 自动声明 libcurl 运行依赖。
+HTTP 检测使用 libcurl（宽松的 curl 许可证，见 `licenses/curl.txt`）。macOS 使用系统 libcurl；Windows 构建通过 vcpkg 安装 `curl[core,ssl]` 静态库，自动使用 Schannel 后端和系统证书库。Linux 构建需要 `libcurl4-openssl-dev`，CLI 运行需要 `libcurl4` 和 `ca-certificates`（Debian / Ubuntu 可运行 `sudo apt install libcurl4 ca-certificates`）；DEB 自动声明 libcurl 运行依赖。
 
 ## 许可证
 
