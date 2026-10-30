@@ -101,6 +101,8 @@ curl -fsSL https://he.sb/pingkk.sh | PINGKK_PREFIX="$HOME/apps/pingkk" sh
 
 上述是构建目标，不代表已在每一种旧系统上实测。GitHub Actions 进行打包后启动检查，并检查 Windows x64 已知不兼容入口及 macOS 所有内置库的最低系统版本；托管 Runner 不提供 Server 2016，仍需在该系统验收。
 
+手动构建：进入 GitHub 仓库的 Actions → 构建全平台版本 → Run workflow，选择分支和平台；`all` 构建全部平台，也可选择 `windows`、`macos` 或 `linux`。构建完成后，在对应运行页面的 Artifacts 中下载安装包。手动构建不发布 Release；推送版本标签时自动构建并发布全部平台。
+
 Windows 单文件版也支持 `程序.exe --extract 新目录`，用于保留解压文件或替换 Qt 动态库；随后可直接运行目录内的 `pingkk-gui.exe`。目标目录必须尚不存在。
 
 ### macOS 打开方式

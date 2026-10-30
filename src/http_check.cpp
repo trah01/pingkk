@@ -2,6 +2,12 @@
 #include "pingkk/language.h"
 #include "pingkk/version.h"
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include <curl/curl.h>
 #include <algorithm>
 #include <chrono>

@@ -4,6 +4,17 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 构建平台
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - windows
+          - macos
+          - linux
 
 concurrency:
   group: build-${{ github.event_name }}-${{ github.ref }}
@@ -15,6 +26,7 @@ permissions:
 jobs:
   windows-x64:
     name: ${{ matrix.name }}
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -126,6 +138,7 @@ jobs:
 
   windows-arm64:
     name: Windows ARM64（Qt 6）
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-2022
     steps:
       - name: 检出代码
@@ -221,6 +234,7 @@ jobs:
           retention-days: 14
 
   macos:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -299,6 +313,7 @@ jobs:
           retention-days: 14
 
   linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
     name: ${{ matrix.name }}
     runs-on: ubuntu-22.04
     strategy:
