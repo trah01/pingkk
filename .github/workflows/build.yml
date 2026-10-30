@@ -69,6 +69,7 @@ jobs:
             "-DVCPKG_OVERLAY_TRIPLETS=$pwd/cmake/triplets" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DPINGKK_BUILD_GUI=ON -DPINGKK_QT_MAJOR=${{ matrix.qt-major }}
+          if ($LASTEXITCODE -ne 0) { throw "CMake configuration failed: $LASTEXITCODE" }
           cmake --build build --config Release --parallel
 
       - name: 整理运行文件
@@ -166,11 +167,13 @@ jobs:
           & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install 'curl[core,ssl]:arm64-windows-static' `
             --host-triplet=x64-windows-static
           if ($LASTEXITCODE -ne 0) { throw "libcurl installation failed: $LASTEXITCODE" }
+          $qtHostPath = (Join-Path $env:RUNNER_TEMP 'qt-host/Qt/6.8.3/msvc2022_64').Replace('\', '/')
           cmake -S . -B build -A ARM64 `
             "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=arm64-windows-static `
             -DPINGKK_QT_MAJOR=6 -DPINGKK_BUILD_GUI=ON `
-            "-DQT_HOST_PATH=${{ runner.temp }}/qt-host/Qt/6.8.3/msvc2022_64"
+            "-DQT_HOST_PATH=$qtHostPath"
+          if ($LASTEXITCODE -ne 0) { throw "CMake configuration failed: $LASTEXITCODE" }
           cmake --build build --config Release --parallel
 
       - name: 整理运行文件
