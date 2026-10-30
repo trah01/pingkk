@@ -93,6 +93,7 @@ void printHelp() {
         << pingkk::text("    -v6                             使用 IPv6，默认 IPv4\n")
         << pingkk::text("    --lang <zh|en>                  设置输出语言，默认 zh\n")
         << pingkk::text("  pingkk gui                        打开图形界面\n")
+        << pingkk::text("  pingkk gui update                 下载并打开最新图形界面安装包\n")
         << pingkk::text("  pingkk update                     升级命令行程序\n")
         << pingkk::text("  pingkk --version                  显示当前版本\n")
         << pingkk::text("  pingkk -h | --help                 显示本教程\n\n")
@@ -760,6 +761,13 @@ int main(int argc, char* argv[]) {
         return pingkk::cli::updateCommand();
     }
     if (arguments[0] == "gui") {
+        if (arguments.size() == 2 && arguments[1] == "update") {
+            return pingkk::cli::updateGuiCommand();
+        }
+        if (arguments.size() != 1) {
+            std::cerr << pingkk::text("用法：pingkk gui 或 pingkk gui update；可添加 --lang zh 或 --lang en。\n");
+            return 2;
+        }
         return launchGui(argv[0]);
     }
 

@@ -165,6 +165,8 @@ const char* text(const char* chinese) {
         {"    -t                              持续测试\n", "    -t                                 Test continuously\n"},
         {"    --lang <zh|en>                  设置输出语言，默认 zh\n", "    --lang <zh|en>                      Set the output language (default: zh)\n"},
         {"  pingkk gui                        打开图形界面\n", "  pingkk gui                           Open the graphical interface\n"},
+        {"  pingkk gui update                 下载并打开最新图形界面安装包\n", "  pingkk gui update                    Download and open the latest GUI installer\n"},
+        {"用法：pingkk gui 或 pingkk gui update；可添加 --lang zh 或 --lang en。\n", "Usage: pingkk gui or pingkk gui update; optionally add --lang zh or --lang en.\n"},
         {"  pingkk -h | --help                 显示本教程\n\n", "  pingkk -h | --help                    Show this help\n\n"},
         {"额外附加参数可以放在命令中的任意位置；--timeout 和 --lang 的值需紧跟对应选项。\n", "Additional options can appear anywhere; values for --timeout and --lang must immediately follow the option.\n"},
         {"一次只能测试一个地址；多个端口使用英文逗号分隔。\n", "Test one address at a time. Separate multiple ports with commas.\n"},

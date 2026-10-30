@@ -2,13 +2,11 @@
 #include "window_style.h"
 
 #include <QPainter>
-#include <QLineEdit>
 #include <QStyleOptionSpinBox>
 
 TimeoutSpinBox::TimeoutSpinBox(QWidget* parent) : QSpinBox(parent) {
     // 保留 Qt 的步进、长按和键盘行为，避免无按钮模式下的编辑区布局异常。
     setButtonSymbols(QAbstractSpinBox::UpDownArrows);
-    lineEdit()->setTextMargins(9, 0, 2, 0);
 }
 
 void TimeoutSpinBox::paintEvent(QPaintEvent* event) {

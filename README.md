@@ -121,9 +121,11 @@ xattr -dr com.apple.quarantine pingkk.app
 
 运行 `pingkk gui` 打开已安装的图形界面；未安装时会询问是否下载安装包，直接回车默认同意，输入 `n` 取消。程序自动选择当前系统和处理器架构的发布包，优先从 GitHub 下载，不可用时改用官网，并校验 SHA256。下载文件保留在用户下载目录：Windows 打开安装向导，Debian 系 Linux 打开 DEB 安装包，由用户确认安装；macOS 解压后打开文件夹，将 `pingkk.app` 拖入 `Applications` 即可安装。其他 Linux 系统提供便携包，解压后运行 `run-pingkk.sh`。非交互输入结束时直接取消。
 
+运行 `pingkk gui update` 直接下载最新图形界面安装包，校验后打开供用户安装，无需确认下载。即使已安装图形界面或当前 CLI 已是最新版本，也会下载最新安装包。安装方式与上述相同，可添加 `--lang en` 查看英文提示。
+
 运行 `pingkk update` 升级当前 CLI。默认检查 GitHub 最新正式 Release，连接探测（含重定向）的总超时为 1000ms；超时、连接失败或附件下载失败时，自动切换到 `https://he.sb/pingkk/latest/`。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
 
-命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。命令行确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致。
+命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。`pingkk update` 确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致。
 
 图形界面在“设置”中点击“检查更新”，发现新版本后点击“下载更新”。应用会选择对应系统、架构和兼容版本的完整发行包，核对 SHA256 及包内程序版本；准备完成后点击“重启并更新”，由更新程序等待旧进程退出、安装更新并重新打开应用。下载失败或校验失败时，当前应用继续运行。下载同一版本的 GitHub 附件失败时切换官网版本目录，不混用其他版本。
 

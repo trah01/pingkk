@@ -219,6 +219,15 @@ int updateCommand() {
     return runReleaseHelper(false);
 }
 
+int updateGuiCommand() {
+    const int status = runReleaseHelper(true);
+    if (status != 0) {
+        std::cerr << text("可手动下载安装包：\n")
+                  << PINGKK_PROJECT_URL "/releases\nhttps://he.sb/pingkk/\n";
+    }
+    return status;
+}
+
 int installGuiCommand() {
     std::cout << text("未安装图形界面。是否下载安装包并打开？[Y/n] ");
     std::string answer;
@@ -239,12 +248,7 @@ int installGuiCommand() {
         }
         std::cout << text("请输入 y 或 n，直接回车默认安装：[Y/n] ");
     }
-    const int status = runReleaseHelper(true);
-    if (status != 0) {
-        std::cerr << text("可手动下载安装包：\n")
-                  << PINGKK_PROJECT_URL "/releases\nhttps://he.sb/pingkk/\n";
-    }
-    return status;
+    return updateGuiCommand();
 }
 
 } }

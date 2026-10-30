@@ -467,7 +467,8 @@ void MainWindow::buildInterface() {
     timeoutSpin_->setRange(100, 60000);
     timeoutSpin_->setValue(1000);
     timeoutSpin_->setSuffix(" ms");
-    timeoutSpin_->setFixedWidth(112);
+    timeoutSpin_->setMinimumWidth(112);
+    timeoutSpin_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     singleButton_ = new QPushButton;
     singleButton_->setObjectName("primaryButton");
     singleButton_->setMinimumWidth(96);
