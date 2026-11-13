@@ -426,7 +426,8 @@ std::string networkPrefixFor(const std::string& localAddress) {
     return pingkk::text("未知");
 }
 
-std::vector<std::string> currentDnsServers() {
+namespace {
+std::vector<std::string> allDnsServers() {
     std::vector<std::string> servers;
 #ifdef _WIN32
     SocketRuntime runtime;
@@ -482,6 +483,18 @@ std::vector<std::string> currentDnsServers() {
 #else
     appendResolvConfServers(servers);
 #endif
+    return servers;
+}
+}  // namespace
+
+std::vector<std::string> currentDnsServers(IpVersion version) {
+    // IPv4 mode must not show IPv6 servers, including link-local fe80:: addresses.
+    std::vector<std::string> servers;
+    const std::vector<std::string> all = allDnsServers();
+    for (std::size_t index = 0; index < all.size(); ++index) {
+        const bool ipv6 = all[index].find(':') != std::string::npos;
+        if (ipv6 == (version == IpVersion::V6)) servers.push_back(all[index]);
+    }
     return servers;
 }
 

@@ -1,4 +1,4 @@
-# Windows PowerShell 5.1+: irm https://he.sb/pingkk.ps1 | iex
+# Windows PowerShell 5.1+: irm https://f.trah.cn/pingkk.ps1 | iex
 # Install for the current user; administrator privileges are not required.
 $ErrorActionPreference = 'Stop'
 $workDir = $null
@@ -31,7 +31,7 @@ try {
     $workDir = Join-Path $installDir ('.install-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDir | Out-Null
     Write-Host "Downloading $asset..."
-    $downloadUrl = 'https://he.sb/pingkk/latest'
+    $downloadUrl = 'https://f.trah.cn/pingkk/latest'
     $response = Invoke-WebRequest -UseBasicParsing -Uri "$downloadUrl/SHA256SUMS.txt"
     $expected = $null
     foreach ($line in ($response.Content -split "`n")) {

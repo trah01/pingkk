@@ -61,7 +61,7 @@ Windows 不再提供 x86 / XP 版本。
 macOS / Linux：
 
 ```bash
-curl -fsSL https://he.sb/pingkk.sh | sh
+curl -fsSL https://f.trah.cn/pingkk.sh | sh
 ```
 
 普通用户默认安装到 `~/.local/bin/pingkk`，无需 root 或 sudo；root 用户默认安装到 `/usr/local/bin/pingkk`。临时文件放在安装目录下，结束后自动清理，无需写入 `/tmp`。如果用户目录尚未加入 PATH，脚本会显示当前终端可执行的设置命令。macOS 自动选择 Intel / Apple Silicon，Linux 支持 x86 / x64 / ARM64，需要 glibc 2.28 及以上；不支持 Alpine / musl。脚本需要系统提供 `curl`、解压工具和 SHA256 工具。
@@ -69,19 +69,19 @@ curl -fsSL https://he.sb/pingkk.sh | sh
 Windows（在 PowerShell 5.1 或更高版本中执行）：
 
 ```powershell
-irm https://he.sb/pingkk.ps1 | iex
+irm https://f.trah.cn/pingkk.ps1 | iex
 ```
 
-也可下载 [pingkk.bat](https://he.sb/pingkk.bat)，双击安装。BAT 会自动调用 PowerShell 5.1 或更高版本，完成后保留窗口显示结果；无需手动打开 PowerShell。
+也可下载 [pingkk.bat](https://f.trah.cn/pingkk.bat)，双击安装。BAT 会自动调用 PowerShell 5.1 或更高版本，完成后保留窗口显示结果；无需手动打开 PowerShell。
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\pingkk`，自动加入用户 PATH，无需管理员权限。自动选择 x64、旧系统 x64 兼容版或 ARM64。
 
-安装脚本均直接从 `https://he.sb/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
+安装脚本均直接从 `https://f.trah.cn/pingkk/latest/` 下载 CLI 包及 `SHA256SUMS.txt`，不访问 GitHub，并在安装前校验 SHA256；再次执行即可更新到网站提供的最新版本。安装后运行 `pingkk --help`。
 
 macOS / Linux 也可指定其他当前用户可写的目录，例如：
 
 ```bash
-curl -fsSL https://he.sb/pingkk.sh | PINGKK_PREFIX="$HOME/apps/pingkk" sh
+curl -fsSL https://f.trah.cn/pingkk.sh | PINGKK_PREFIX="$HOME/apps/pingkk" sh
 ```
 
 使用自定义目录时，需要将其 `bin` 子目录加入 PATH。
@@ -119,15 +119,25 @@ xattr -dr com.apple.quarantine pingkk.app
 
 图形界面右上角选择 `English` 后，后续测试的日志、诊断信息及报告使用英文。命令行默认使用中文，可添加 `--lang en` 切换英文，例如 `pingkk example.com 443 --lang en` 或 `pingkk --help --lang en`；使用 `--lang zh` 切回中文。
 
-运行 `pingkk gui` 打开已安装的图形界面；未安装时会询问是否下载安装包，直接回车默认同意，输入 `n` 取消。程序自动选择当前系统和处理器架构的发布包，优先从 GitHub 下载，不可用时改用官网，并校验 SHA256。下载文件保留在用户下载目录：Windows 打开安装向导，Debian 系 Linux 打开 DEB 安装包，由用户确认安装；macOS 解压后打开文件夹，将 `pingkk.app` 拖入 `Applications` 即可安装。其他 Linux 系统提供便携包，解压后运行 `run-pingkk.sh`。非交互输入结束时直接取消。
+运行 `pingkk gui` 打开已安装的图形界面；未安装时会询问是否下载安装包，直接回车默认同意，输入 `n` 取消。程序会先询问更新渠道（见下文），再自动选择当前系统和处理器架构的发布包，并校验 SHA256。下载文件保留在用户下载目录：Windows 打开安装向导，Debian 系 Linux 打开 DEB 安装包，由用户确认安装；macOS 解压后打开文件夹，将 `pingkk.app` 拖入 `Applications` 即可安装。其他 Linux 系统提供便携包，解压后运行 `run-pingkk.sh`。非交互输入结束时直接取消。
 
 运行 `pingkk gui update` 直接下载最新图形界面安装包，校验后打开供用户安装，无需确认下载。即使已安装图形界面或当前 CLI 已是最新版本，也会下载最新安装包。安装方式与上述相同，可添加 `--lang en` 查看英文提示。
 
-运行 `pingkk update` 升级当前 CLI。默认检查 GitHub 最新正式 Release，连接探测（含重定向）的总超时为 1000ms；超时、连接失败或附件下载失败时，自动切换到 `https://he.sb/pingkk/latest/`。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
+更新提供三种渠道：
 
-命令行和图形界面均先检查 GitHub，1000ms 内未完成或检查失败时自动查询官网的 `https://he.sb/pingkk/latest/version.json`，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。`pingkk update` 确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致。
+| 渠道 | 下载来源 |
+| --- | --- |
+| 自动（默认） | 先连海外 GitHub，1000ms 内连不上或下载失败时改用国内渠道 |
+| 国内 | 国内下载站，适合中国大陆网络 |
+| 海外 | GitHub Releases，失败时不切换，直接报错 |
 
-图形界面在“设置”中点击“检查更新”，发现新版本后点击“下载更新”。应用会选择对应系统、架构和兼容版本的完整发行包，核对 SHA256 及包内程序版本；准备完成后点击“重启并更新”，由更新程序等待旧进程退出、安装更新并重新打开应用。下载失败或校验失败时，当前应用继续运行。下载同一版本的 GitHub 附件失败时切换官网版本目录，不混用其他版本。
+`pingkk update` 和 `pingkk gui update` 运行时会列出这三种渠道，输入序号选择，直接回车选“自动”；在脚本等非交互环境中运行时不询问，直接使用“自动”。
+
+运行 `pingkk update` 升级当前 CLI。下载文件会进行 SHA256 校验，并确认新程序能够运行；校验失败不替换当前程序，下载源版本较旧时不降级。可用 `pingkk --version` 查看当前版本，用 `pingkk update --lang en` 查看英文更新提示。
+
+国内渠道通过下载站的 `latest/version.json` 获取最新版本，格式为 `{"tag_name":"v0.1.3"}`。官网同步脚本 `scripts/sync_website_cli.sh` 会根据已同步的 Release 自动生成该文件。`pingkk update` 确认版本较新后才下载发布包，并核对包内程序版本与版本信息是否一致。
+
+图形界面在“设置”中选择“更新渠道”（会记住上次的选择），再点击“检查更新”，发现新版本后点击“下载更新”。应用会选择对应系统、架构和兼容版本的完整发行包，核对 SHA256 及包内程序版本；准备完成后点击“重启并更新”，由更新程序等待旧进程退出、安装更新并重新打开应用。下载失败或校验失败时，当前应用继续运行。“自动”渠道下载同一版本的 GitHub 附件失败时切换国内渠道的同版本目录，不混用其他版本。
 
 macOS 更新整个 `.app`；Windows 单文件版更新原始便携程序，解压版替换完整程序目录，安装版调用系统安装程序；Linux 便携版替换完整目录，DEB 通过 `pkexec` 和 `apt-get` 更新。系统目录需要权限时会出现系统授权窗口。便携版替换失败时尝试恢复旧文件，安装版由系统安装工具处理。重启后显示更新结果，日志保存在应用缓存目录的 `updates/pingkk-update-*/apply.log`。开发构建及未识别的安装方式需使用官方发行包。
 

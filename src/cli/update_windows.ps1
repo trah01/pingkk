@@ -3,15 +3,19 @@ param(
     [Parameter(Mandatory=$true)][string]$CurrentVersion,
     [Parameter(Mandatory=$true)][int]$ParentPid,
     [switch]$English,
-    [switch]$GuiInstaller
+    [switch]$GuiInstaller,
+    [ValidateSet('auto', 'cn', 'global')][string]$Channel = 'auto'
 )
 $ErrorActionPreference = 'Stop'
 $workDir = $null
 $staged = $null
 $backup = $null
 $originalTls = [Net.ServicePointManager]::SecurityProtocol
+function Text([string]$Chinese, [string]$EnglishText) {
+    if ($English) { return $EnglishText } else { return $Chinese }
+}
 function Say([string]$Chinese, [string]$EnglishText) {
-    if ($English) { Write-Host $EnglishText } else { Write-Host $Chinese }
+    Write-Host (Text $Chinese $EnglishText)
 }
 function No-UpdateNeeded([string]$SourceVersion) {
     if ([Version]$SourceVersion -eq [Version]$CurrentVersion) {
@@ -22,11 +26,11 @@ function No-UpdateNeeded([string]$SourceVersion) {
 }
 # Use HttpWebRequest so the entire GitHub probe has a millisecond deadline,
 # including redirects. Windows PowerShell 5.1 has no equivalent IWR deadline.
-function Get-GitHubRelease {
+function Get-GitHubRelease([int]$LimitMs) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $url = 'https://github.com/trah01/pingkk/releases/latest'
     for ($redirect = 0; $redirect -lt 8; $redirect++) {
-        $remaining = 1000 - [int]$watch.ElapsedMilliseconds
+        $remaining = $LimitMs - [int]$watch.ElapsedMilliseconds
         if ($remaining -le 0) { return $null }
         $request = [Net.HttpWebRequest]::Create($url)
         $request.Method = 'HEAD'
@@ -38,13 +42,13 @@ function Get-GitHubRelease {
         $pending = $null
         try {
             $pending = $request.BeginGetResponse($null, $null)
-            $remaining = 1000 - [int]$watch.ElapsedMilliseconds
+            $remaining = $LimitMs - [int]$watch.ElapsedMilliseconds
             if ($remaining -le 0 -or -not $pending.AsyncWaitHandle.WaitOne($remaining)) {
                 $request.Abort()
                 return $null
             }
             $response = $request.EndGetResponse($pending)
-            if ($watch.ElapsedMilliseconds -gt 1000) { return $null }
+            if ($watch.ElapsedMilliseconds -gt $LimitMs) { return $null }
             $status = [int]$response.StatusCode
             if ($status -ge 300 -and $status -lt 400) {
                 $next = [Uri]::new([Uri]$url, $response.Headers['Location'])
@@ -115,30 +119,47 @@ try {
     New-Item -ItemType Directory -Path $workDir | Out-Null
     if ($GuiInstaller) {
         Say "正在查找图形界面安装包：${asset}……" "Looking for the GUI installer: $asset..."
-    } else {
-        Say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
     }
-    $tag = Get-GitHubRelease
+    $mirror = 'https://f.trah.cn/pingkk/latest'
+    # Automatic mode gives GitHub 1 second before switching to the domestic mirror;
+    # an explicitly selected overseas channel waits longer and never switches.
+    $githubSeconds = 1
+    if ($Channel -eq 'global') { $githubSeconds = 10 }
+    $tag = $null
+    switch ($Channel) {
+        'auto' { Say '正在检查更新：先连接海外渠道 GitHub（1 秒超时），不通时改用国内渠道……' 'Checking for updates: trying GitHub first (1-second timeout), then the domestic mirror...' }
+        'cn' { Say '正在检查更新：国内渠道……' 'Checking for updates: domestic channel...' }
+        'global' { Say '正在检查更新：海外渠道 GitHub……' 'Checking for updates: GitHub...' }
+    }
+    if ($Channel -ne 'cn') { $tag = Get-GitHubRelease ($githubSeconds * 1000) }
+    if ($Channel -eq 'global' -and -not $tag) {
+        throw (Text '无法连接 GitHub，当前程序未改动。可改用国内渠道重试。' 'Unable to reach GitHub. The current program was not changed. Try the domestic channel instead.')
+    }
     if (-not $GuiInstaller -and $tag -and [Version]$tag.TrimStart('v') -le [Version]$CurrentVersion) {
         No-UpdateNeeded $tag.TrimStart('v')
         return
     }
     $source = 'mirror'
-    $base = 'https://he.sb/pingkk/latest'
+    $base = $mirror
     if ($tag) {
         $source = 'github'
         $base = "https://github.com/trah01/pingkk/releases/download/$tag"
         Say '正在从 GitHub Releases 下载……' 'Downloading from GitHub Releases...'
         try {
-            Download "$base/SHA256SUMS.txt" (Join-Path $workDir 'SHA256SUMS.txt') 1
-            Download "$base/$asset" (Join-Path $workDir $asset) 1
+            Download "$base/SHA256SUMS.txt" (Join-Path $workDir 'SHA256SUMS.txt') $githubSeconds
+            Download "$base/$asset" (Join-Path $workDir $asset) $githubSeconds
         } catch {
+            if ($Channel -ne 'auto') {
+                throw (Text '从 GitHub 下载失败，当前程序未改动。可改用国内渠道重试。' 'Download from GitHub failed. The current program was not changed. Try the domestic channel instead.')
+            }
             $source = 'mirror'
         }
     }
     if ($source -eq 'mirror') {
-        $base = 'https://he.sb/pingkk/latest'
-        Say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 下载。' 'GitHub is unavailable; downloading from https://he.sb/pingkk/latest/.'
+        $base = $mirror
+        if ($Channel -eq 'auto') {
+            Say 'GitHub 不可用，改从国内渠道下载。' 'GitHub is unavailable; downloading from the domestic channel.'
+        }
         $manifest = Join-Path $workDir 'version.json'
         Download "$base/version.json" $manifest 10
         $metadata = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json

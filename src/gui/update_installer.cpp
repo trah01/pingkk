@@ -1,4 +1,5 @@
 #include "update_installer.h"
+#include "update_check.h"
 #include "update_transfer.h"
 #include "pingkk/version.h"
 
@@ -86,7 +87,7 @@ bool UpdateInstaller::selectPackage() {
     return true;
 }
 
-void UpdateInstaller::start(const QString& version, const QUrl& source) {
+void UpdateInstaller::start(const QString& version, const QUrl& source, bool fallback) {
     if (transfer_ || process_.state() != QProcess::NotRunning) return;
     ready_ = false;
     static const QRegularExpression valid("^[0-9]+\\.[0-9]+\\.[0-9]+$");
@@ -97,6 +98,7 @@ void UpdateInstaller::start(const QString& version, const QUrl& source) {
         return;
     }
     version_ = version;
+    fallback_ = fallback;
     if (!selectPackage()) {
         fail(message("This installation cannot update itself. Install an official release package first; Linux DEB updates also need pkexec and apt-get.",
                      "当前安装方式无法应用内更新。请先安装官方发行包；Linux DEB 更新还需要 pkexec 和 apt-get。"));
@@ -117,7 +119,7 @@ void UpdateInstaller::start(const QString& version, const QUrl& source) {
 
 void UpdateInstaller::download(bool github) {
     const QUrl base(github ? QString(PINGKK_PROJECT_URL "/releases/download/v%1/").arg(version_)
-                           : QString("https://he.sb/pingkk/v%1/").arg(version_));
+                           : UpdateCheck::mirrorBase() + QString("v%1/").arg(version_));
     emit statusChanged(message("Downloading checksums...", "正在获取更新校验信息……"));
     transfer_ = new UpdateTransfer(base.resolved(QUrl("SHA256SUMS.txt")), QString(), false, 15000, this);
     UpdateTransfer* transfer = transfer_;
@@ -125,7 +127,7 @@ void UpdateInstaller::download(bool github) {
         transfer_ = NULL;
         transfer->deleteLater();
         if (!transfer->error.isEmpty()) {
-            if (github) { download(false); return; }
+            if (github && fallback_) { download(false); return; }
             fail(message("Unable to download update information: ", "无法获取更新信息：") + transfer->error);
             return;
         }
@@ -156,7 +158,7 @@ void UpdateInstaller::downloadPackage(const QUrl& base, bool github, const QByte
         transfer_ = NULL;
         transfer->deleteLater();
         if (!transfer->error.isEmpty()) {
-            if (github) { download(false); return; }
+            if (github && fallback_) { download(false); return; }
             fail(message("Download failed: ", "下载失败：") + transfer->error);
             return;
         }

@@ -8,7 +8,8 @@
 
 namespace {
 const char* githubLatest = PINGKK_PROJECT_URL "/releases/latest";
-const char* officialLatest = "https://he.sb/pingkk/latest/";
+const char* officialMirror = "https://f.trah.cn/pingkk/";
+const QString officialLatest = QString(officialMirror) + "latest/";
 
 QString validVersion(const QString& tag) {
     static const QRegularExpression pattern("^v?([0-9]+\\.[0-9]+\\.[0-9]+)$");
@@ -19,14 +20,20 @@ QString validVersion(const QString& tag) {
 UpdateCheck::UpdateCheck(QObject* parent)
     : QObject(parent) {}
 
-void UpdateCheck::start(const Completion& completion) {
-    checkSource(true, completion);
+QString UpdateCheck::mirrorBase() {
+    return QString(officialMirror);
 }
 
-void UpdateCheck::checkSource(bool github, const Completion& completion) {
+void UpdateCheck::start(const QString& channel, const Completion& completion) {
+    if (channel == "cn") checkSource(false, false, 10000, completion);
+    else if (channel == "global") checkSource(true, false, 10000, completion);
+    else checkSource(true, true, 1000, completion);
+}
+
+void UpdateCheck::checkSource(bool github, bool fallback, long timeout, const Completion& completion) {
     UpdateTransfer* transfer = new UpdateTransfer(
-        QUrl(github ? QString(githubLatest) : QString(officialLatest) + "version.json"),
-        QString(), github, github ? 1000 : 10000, this);
+        QUrl(github ? QString(githubLatest) : officialLatest + "version.json"),
+        QString(), github, timeout, this);
     connect(transfer, &QThread::finished, this, [=]() {
         QString version;
         if (transfer->error.isEmpty()) {
@@ -43,8 +50,8 @@ void UpdateCheck::checkSource(bool github, const Completion& completion) {
             }
         }
         transfer->deleteLater();
-        if (version.isEmpty() && github) {
-            checkSource(false, completion);
+        if (version.isEmpty() && fallback) {
+            checkSource(false, false, 10000, completion);
         } else {
             completion(version, QUrl(github ? githubLatest : officialLatest));
         }

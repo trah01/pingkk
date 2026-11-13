@@ -23,6 +23,17 @@ const char* text(const char* chinese) {
         {"请输入 y 或 n，直接回车默认安装：[Y/n] ", "Enter y or n; press Enter to download the installer: [Y/n] "},
         {"已取消安装。\n", "Installation cancelled.\n"},
         {"可手动下载安装包：\n", "Download the installer manually:\n"},
+        {"请选择更新渠道：\n"
+         "  1. 自动：先连海外 GitHub，不通时改用国内\n"
+         "  2. 国内\n"
+         "  3. 海外：GitHub\n"
+         "请输入 1、2 或 3，直接回车选 1：",
+         "Choose an update channel:\n"
+         "  1. Automatic: try GitHub first, then the domestic mirror\n"
+         "  2. Domestic\n"
+         "  3. Overseas: GitHub\n"
+         "Enter 1, 2, or 3; press Enter for 1: "},
+        {"请输入 1、2 或 3，直接回车选 1：", "Enter 1, 2, or 3; press Enter for 1: "},
         {"    --proxy <代理地址>              HTTP 检测使用指定代理\n", "    --proxy <URL>                      Use a proxy for HTTP checks\n"},
         {"请在 --proxy 后填写代理地址。\n", "Enter a proxy URL after --proxy.\n"},
         {"--proxy 仅用于 HTTP 检测。\n", "--proxy is only available for HTTP checks.\n"},
@@ -64,7 +75,6 @@ const char* text(const char* chinese) {
         {"  pingkk --version                  显示当前版本\n", "  pingkk --version                     Show the current version\n"},
         {"update 不需要其他参数，仅支持 --lang zh 或 --lang en。\n", "update takes no additional arguments except --lang zh or --lang en.\n"},
         {"未找到图形界面，请下载适合当前系统的图形界面包或安装包：\n", "The graphical interface was not found. Download the GUI package or installer for your system:\n"},
-        {"2. 网站下载：https://he.sb/pingkk/\n", "2. Website: https://he.sb/pingkk/\n"},
         {"图形界面启动失败，请检查安装文件和运行环境。\n", "The graphical interface could not be started. Check the installation files and runtime environment.\n"},
         {"目标没有可用的 IPv6 地址", "The target has no usable IPv6 address"},
         {"目标没有可用的 IPv4 地址", "The target has no usable IPv4 address"},

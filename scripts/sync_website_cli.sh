@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Linux server: synchronize installer scripts and all latest release assets.
+# Linux server: synchronize installer scripts and all latest release assets
+# from a Forgejo repository, e.g. PINGKK_FORGEJO_REPO_URL=https://git.example.com/owner/pingkk
 set -Eeuo pipefail
 umask 022
 
 site_root=${PINGKK_SITE_ROOT:-}
-repository=trah01/pingkk
+repo_url=${PINGKK_FORGEJO_REPO_URL:-}
+# Private repositories need a netrc file, for example:
+#   machine git.example.com login <user> password <read-only token>
+# curl sends it only to the matching host, and the token never appears in process arguments.
+netrc_file=${PINGKK_FORGEJO_NETRC:-}
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 fail() { log "同步失败：$*" >&2; exit 1; }
@@ -14,6 +19,18 @@ done
 [[ -n "$site_root" ]] || fail '请通过 PINGKK_SITE_ROOT 指定网站根目录。'
 [[ "$site_root" = /* ]] || fail '网站目录必须是绝对路径。'
 [[ -d "$site_root" && -w "$site_root" ]] || fail "网站目录不存在或不可写：$site_root"
+repo_url=${repo_url%/}
+repo_url=${repo_url%.git}
+[[ "$repo_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+    fail '请通过 PINGKK_FORGEJO_REPO_URL 指定仓库网址，例如 https://git.example.com/owner/pingkk。'
+forgejo=${repo_url%/*/*}
+repository=${repo_url#"$forgejo/"}
+api="$forgejo/api/v1/repos/$repository"
+auth=()
+if [[ -n "$netrc_file" ]]; then
+    [[ -r "$netrc_file" ]] || fail "无法读取凭据文件：$netrc_file"
+    auth=(--netrc-file "$netrc_file")
+fi
 
 # Prevent overlapping scheduled runs. The lock is outside the public website.
 exec 9>/tmp/pingkk-site-sync.lock
@@ -24,17 +41,18 @@ fi
 work_dir=$(mktemp -d "$site_root/.pingkk-sync.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
 trap 'exit 1' HUP INT TERM
-trap 'log "同步失败（第 $LINENO 行），请检查 GitHub 网络连接、发布附件及目录权限；未重试或切换镜像。" >&2' ERR
+trap 'log "同步失败（第 $LINENO 行），请检查 Forgejo 连接、凭据、发布附件及目录权限。" >&2' ERR
 
+# Redirects must stay on HTTPS.
 download() {
-    curl --proto '=https' --proto-redir '=https' -fsSL \
+    curl --proto '=https' --proto-redir '=https' -fsSL ${auth[@]+"${auth[@]}"} \
         --connect-timeout 20 --max-time 1800 -o "$2" "$1"
 }
 
-log '检查最新正式 Release 和 main 分支安装脚本。'
-download "https://api.github.com/repos/$repository/releases/latest" "$work_dir/release.json"
-download "https://api.github.com/repos/$repository/commits/main" "$work_dir/commit.json"
-release_tag=$(python3 - "$work_dir/release.json" "$work_dir/assets.txt" <<'PY'
+log '从 Forgejo 检查最新正式 Release 和 main 分支安装脚本。'
+download "$api/releases/latest" "$work_dir/release.json"
+download "$api/branches/main" "$work_dir/commit.json"
+release_tag=$(python3 - "$work_dir/release.json" "$work_dir/assets.txt" "$forgejo" <<'PY'
 import json, re, sys
 with open(sys.argv[1], encoding='utf-8') as stream:
     release = json.load(stream)
@@ -42,6 +60,9 @@ tag = release['tag_name']
 if not re.fullmatch(r'v[0-9][A-Za-z0-9._+-]*', tag):
     raise SystemExit('Release 标签必须是以 v 和数字开头的安全目录名：' + repr(tag))
 names = [asset['name'] for asset in release['assets']]
+for asset in release['assets']:
+    if not asset['browser_download_url'].startswith(sys.argv[3] + '/'):
+        raise SystemExit('Release 附件地址不在该 Forgejo 站点：' + repr(asset['name']))
 if 'SHA256SUMS.txt' not in names:
     raise SystemExit('Release 缺少 SHA256SUMS.txt。')
 if len(names) != len(set(names)):
@@ -69,20 +90,20 @@ log "本次同步 ${#assets[@]} 个发布文件及 SHA256SUMS.txt。"
 commit=$(python3 - "$work_dir/commit.json" <<'PY'
 import json, re, sys
 with open(sys.argv[1], encoding='utf-8') as stream:
-    commit = json.load(stream)['sha']
+    commit = json.load(stream)['commit']['id']
 if not re.fullmatch(r'[0-9a-f]{40}', commit):
-    raise SystemExit('GitHub 返回了无效的提交编号。')
+    raise SystemExit('Forgejo 返回了无效的提交编号。')
 print(commit)
 PY
 )
 
 for script in pingkk.sh pingkk.ps1 pingkk.bat; do
-    download "https://raw.githubusercontent.com/$repository/$commit/website/$script" "$work_dir/$script"
+    download "$api/raw/website/$script?ref=$commit" "$work_dir/$script"
     [[ -s "$work_dir/$script" ]] || fail "安装脚本为空：$script"
 done
 sh -n "$work_dir/pingkk.sh"
 
-release_url="https://github.com/$repository/releases/download/$release_tag"
+release_url="$repo_url/releases/download/$release_tag"
 download "$release_url/SHA256SUMS.txt" "$work_dir/release-checksums.txt"
 mkdir "$work_dir/packages"
 : > "$work_dir/packages/SHA256SUMS.txt"

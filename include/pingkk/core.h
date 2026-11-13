@@ -48,8 +48,8 @@ std::string subnetMaskFor(const std::string& localAddress);
 // 返回 IPv6 接口前缀长度，IPv4 则返回子网掩码。
 std::string networkPrefixFor(const std::string& localAddress);
 
-// 获取系统当前配置的 DNS 服务器地址。
-std::vector<std::string> currentDnsServers();
+// 获取系统当前配置的、与指定地址类型一致的 DNS 服务器地址。
+std::vector<std::string> currentDnsServers(IpVersion version = IpVersion::V4);
 
 ProbeResult probeTcp(const ResolvedTarget& target,
                      unsigned short port,

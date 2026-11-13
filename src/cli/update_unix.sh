@@ -6,6 +6,7 @@ target=$1
 current_version=$2
 language=$3
 mode=${4:-update}
+channel=${5:-auto}
 staged=
 work_dir=
 say() {
@@ -18,6 +19,10 @@ cleanup() {
 }
 trap 'update_status=$?; cleanup; exit "${update_status}"' EXIT
 trap 'exit 1' HUP INT TERM
+case "${channel}" in
+    auto|cn|global) ;;
+    *) fail "未知的更新渠道：${channel}。" "Unknown update channel: ${channel}." ;;
+esac
 for tool in curl uname mktemp awk sed tr mkdir chmod mv install; do
     command -v "${tool}" >/dev/null 2>&1 || fail "缺少工具：${tool}。" "Required tool not found: ${tool}."
 done
@@ -77,16 +82,26 @@ if [ "${mode}" = gui ]; then
     esac
 fi
 github=https://github.com/trah01/pingkk
-mirror=https://he.sb/pingkk/latest
+mirror=https://f.trah.cn/pingkk/latest
+# Automatic mode gives GitHub 1 second before switching to the domestic mirror;
+# an explicitly selected overseas channel waits longer and never switches.
+github_timeout=1
+[ "${channel}" != global ] || github_timeout=10
 if [ "${mode}" = gui ]; then
     say "正在查找图形界面安装包：${asset}……" "Looking for the GUI package: ${asset}..."
-else
-    say '正在检查更新，GitHub 连接超时为 1000ms……' 'Checking for updates; GitHub connection timeout is 1000ms...'
 fi
-# The entire HEAD request, including redirects, must finish within 1000ms.
-release_url=$(curl --proto '=https' --proto-redir '=https' -fsSLI \
-    --connect-timeout 1 --max-time 1 -o /dev/null -w '%{url_effective}' \
-    "${github}/releases/latest" 2>/dev/null) || release_url=
+case "${channel}" in
+    auto) say '正在检查更新：先连接海外渠道 GitHub（1 秒超时），不通时改用国内渠道……' 'Checking for updates: trying GitHub first (1-second timeout), then the domestic mirror...' ;;
+    cn) say '正在检查更新：国内渠道……' 'Checking for updates: domestic channel...' ;;
+    global) say '正在检查更新：海外渠道 GitHub……' 'Checking for updates: GitHub...' ;;
+esac
+release_url=
+if [ "${channel}" != cn ]; then
+    # The entire HEAD request, including redirects, must finish within the timeout.
+    release_url=$(curl --proto '=https' --proto-redir '=https' -fsSLI \
+        --connect-timeout "${github_timeout}" --max-time "${github_timeout}" -o /dev/null -w '%{url_effective}' \
+        "${github}/releases/latest" 2>/dev/null) || release_url=
+fi
 source=mirror
 base=${mirror}
 case "${release_url}" in
@@ -98,6 +113,9 @@ case "${release_url}" in
         fi
         ;;
 esac
+if [ "${channel}" = global ] && [ "${source}" != github ]; then
+    fail '无法连接 GitHub，当前程序未改动。可改用国内渠道重试。' 'Unable to reach GitHub. The current program was not changed. Try the domestic channel instead.'
+fi
 
 version_is_newer() {
     awk -v old="${current_version}" -v new="$1" 'BEGIN {
@@ -120,7 +138,8 @@ fi
 download() {
     if [ "${source}" = github ]; then
         curl --proto '=https' --proto-redir '=https' -fsSL \
-            --connect-timeout 1 --speed-limit 1 --speed-time 1 --max-time 1800 -o "$2" "$1"
+            --connect-timeout "${github_timeout}" --speed-limit 1 --speed-time "${github_timeout}" \
+            --max-time 1800 -o "$2" "$1"
     else
         curl --proto '=https' --proto-redir '=https' -fsSL \
             --connect-timeout 10 --max-time 1800 -o "$2" "$1"
@@ -133,12 +152,16 @@ fetch_package() {
 if [ "${source}" = github ]; then
     say '正在从 GitHub Releases 下载……' 'Downloading from GitHub Releases...'
     if ! fetch_package; then
+        [ "${channel}" = auto ] ||
+            fail '从 GitHub 下载失败，当前程序未改动。可改用国内渠道重试。' 'Download from GitHub failed. The current program was not changed. Try the domestic channel instead.'
         source=mirror
         base=${mirror}
     fi
 fi
 if [ "${source}" = mirror ]; then
-    say 'GitHub 不可用，改从 https://he.sb/pingkk/latest/ 下载。' 'GitHub is unavailable; downloading from https://he.sb/pingkk/latest/.'
+    if [ "${channel}" = auto ]; then
+        say 'GitHub 不可用，改从国内渠道下载。' 'GitHub is unavailable; downloading from the domestic channel.'
+    fi
     curl --proto '=https' --proto-redir '=https' -fsSL \
         --connect-timeout 10 --max-time 10 -o "${work_dir}/version.json" "${mirror}/version.json" ||
         fail '无法获取官网版本信息，当前程序未改动。' 'Unable to fetch the official version information. The current program was not changed.'

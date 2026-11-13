@@ -1,0 +1,43 @@
+name: 同步 Release 到 Forgejo
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 版本标签，例如 v1.0.9
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: 同步 ${{ inputs.tag }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出同步脚本
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: true
+
+      - name: 下载 GitHub Release 附件
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "版本标签格式不正确：${TAG}" >&2; exit 1; }
+          gh release download "${TAG}" -R "${GITHUB_REPOSITORY}" -D release-files
+          (cd release-files && sha256sum -c SHA256SUMS.txt)
+          echo "COMMIT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha)" >> "${GITHUB_ENV}"
+
+      - name: 同步到 Forgejo Release
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_REPO_URL: ${{ secrets.FORGEJO_REPO_URL }}
+          TAG: ${{ inputs.tag }}
+        run: scripts/sync_forgejo_release.sh "${TAG}" "${COMMIT}" release-files

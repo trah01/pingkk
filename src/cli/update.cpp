@@ -14,6 +14,8 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#include <io.h>
+#include <cstdio>
 #else
 #include <cerrno>
 #include <cstdlib>
@@ -28,6 +30,45 @@
 
 namespace pingkk { namespace cli {
 namespace {
+
+std::string trimmedLower(std::string value) {
+    const std::string::size_type first = value.find_first_not_of(" \t\r");
+    const std::string::size_type last = value.find_last_not_of(" \t\r");
+    value = first == std::string::npos ? std::string() : value.substr(first, last - first + 1);
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value;
+}
+
+bool interactiveInput() {
+#ifdef _WIN32
+    return _isatty(_fileno(stdin)) != 0;
+#else
+    return isatty(STDIN_FILENO) != 0;
+#endif
+}
+
+// Returns auto, cn or global. Non-interactive runs keep the automatic channel.
+std::string chooseChannel() {
+    if (!interactiveInput()) return "auto";
+    std::cout << text("请选择更新渠道：\n"
+                      "  1. 自动：先连海外 GitHub，不通时改用国内\n"
+                      "  2. 国内\n"
+                      "  3. 海外：GitHub\n"
+                      "请输入 1、2 或 3，直接回车选 1：");
+    std::string answer;
+    for (;;) {
+        if (!std::getline(std::cin, answer)) {
+            std::cout << "\n";
+            return "auto";
+        }
+        answer = trimmedLower(answer);
+        if (answer.empty() || answer == "1") return "auto";
+        if (answer == "2") return "cn";
+        if (answer == "3") return "global";
+        std::cout << text("请输入 1、2 或 3，直接回车选 1：");
+    }
+}
 
 int preparationError() {
     std::cerr << text("无法准备更新程序，请检查程序目录或用户目录的写入权限。\n");
@@ -97,7 +138,7 @@ bool writeScript(int file, const char* script) {
 
 }  // namespace
 
-static int runReleaseHelper(bool guiInstaller) {
+static int runReleaseHelper(bool guiInstaller, const std::string& channel) {
 #ifdef _WIN32
     std::vector<wchar_t> executable(32768, 0);
     const DWORD length = GetModuleFileNameW(NULL, &executable[0], static_cast<DWORD>(executable.size()));
@@ -154,6 +195,7 @@ static int runReleaseHelper(bool guiInstaller) {
         L" -ParentPid " + std::to_wstring(GetCurrentProcessId());
     if (isEnglish()) command += L" -English";
     if (guiInstaller) command += L" -GuiInstaller";
+    command += L" -Channel " + std::wstring(channel.begin(), channel.end());
     std::vector<wchar_t> raw(command.begin(), command.end());
     raw.push_back(0);
     STARTUPINFOW startup = {};
@@ -200,7 +242,7 @@ static int runReleaseHelper(bool guiInstaller) {
     const pid_t child = fork();
     if (child == 0) {
         execl("/bin/sh", "sh", &path[0], target.c_str(), PINGKK_VERSION, isEnglish() ? "en" : "zh",
-              guiInstaller ? "gui" : "update",
+              guiInstaller ? "gui" : "update", channel.c_str(),
               static_cast<char*>(NULL));
         _exit(127);
     }
@@ -216,14 +258,14 @@ static int runReleaseHelper(bool guiInstaller) {
 }
 
 int updateCommand() {
-    return runReleaseHelper(false);
+    return runReleaseHelper(false, chooseChannel());
 }
 
 int updateGuiCommand() {
-    const int status = runReleaseHelper(true);
+    const int status = runReleaseHelper(true, chooseChannel());
     if (status != 0) {
         std::cerr << text("可手动下载安装包：\n")
-                  << PINGKK_PROJECT_URL "/releases\nhttps://he.sb/pingkk/\n";
+                  << PINGKK_PROJECT_URL "/releases\n";
     }
     return status;
 }
@@ -236,11 +278,7 @@ int installGuiCommand() {
             std::cout << "\n" << text("已取消安装。\n");
             return 0;
         }
-        const std::string::size_type first = answer.find_first_not_of(" \t\r");
-        const std::string::size_type last = answer.find_last_not_of(" \t\r");
-        answer = first == std::string::npos ? std::string() : answer.substr(first, last - first + 1);
-        std::transform(answer.begin(), answer.end(), answer.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        answer = trimmedLower(answer);
         if (answer.empty() || answer == "y" || answer == "yes") break;
         if (answer == "n" || answer == "no") {
             std::cout << text("已取消安装。\n");

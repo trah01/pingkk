@@ -536,10 +536,8 @@ std::vector<DnsLookupResult> compareDns(const std::string& input,
     results.push_back(querySystemResolver(host, version));
 
     std::vector<std::pair<std::string, std::string> > resolvers;
-    const std::vector<std::string> systemServers = currentDnsServers();
+    const std::vector<std::string> systemServers = currentDnsServers(version);
     for (std::size_t index = 0; index < systemServers.size(); ++index) {
-        const bool ipv6 = systemServers[index].find(':') != std::string::npos;
-        if ((version == IpVersion::V6 && !ipv6) || (version == IpVersion::V4 && ipv6)) continue;
         resolvers.push_back(std::make_pair(pingkk::text("当前 DNS"), systemServers[index]));
     }
     resolvers.push_back(std::make_pair(pingkk::text("阿里 DNS"), version == IpVersion::V6 ? "2400:3200::1" : "223.5.5.5"));

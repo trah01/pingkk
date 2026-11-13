@@ -1,5 +1,9 @@
 #include "window_style.h"
 
+#include <QComboBox>
+#include <QFrame>
+#include <QListView>
+
 namespace pingkk { namespace gui {
 
 QString mainWindowStyle() {
@@ -64,6 +68,9 @@ QString mainWindowStyle() {
         "QPushButton#textButton:pressed { background: @selection; }"
         "QPushButton#textButton:focus { border-color: @accent; }"
         "QPushButton#textButton:disabled { color: @muted; background: transparent; }"
+        "QFrame#separator { border: 0; border-top: 1px solid @border; max-height: 0; }"
+        "QProgressBar { max-height: 4px; border: 0; border-radius: 2px; background: @hover; }"
+        "QProgressBar::chunk { border-radius: 2px; background: @accent; }"
         "QPlainTextEdit#outputEdit { background: @surface; border: 1px solid @border; "
         "border-radius: 5px; padding: 10px; font-size: 13px; selection-background-color: @selection; }"
         "QPlainTextEdit#outputEdit QScrollBar:vertical { border: 0; background: transparent; "
@@ -90,6 +97,16 @@ QString mainWindowStyle() {
         .replace("@accentPressed", colors::accentPressed).replace("@accent", colors::accent)
         .replace("@hover", colors::hover).replace("@disabled", colors::disabled)
         .replace("@selection", colors::selection).replace("@danger", colors::danger);
+}
+
+void configureComboBox(QComboBox* comboBox) {
+    QListView* view = new QListView(comboBox);
+    view->setObjectName("comboPopup");
+    view->setFrameShape(QFrame::NoFrame);
+    view->setSpacing(2);
+    view->setUniformItemSizes(true);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    comboBox->setView(view);
 }
 
 } }

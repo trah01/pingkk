@@ -10,10 +10,12 @@ class UpdateCheck : public QObject {
 public:
     typedef std::function<void(const QString&, const QUrl&)> Completion;
     explicit UpdateCheck(QObject* parent);
-    void start(const Completion& completion);
+    // channel: auto (GitHub first, then the domestic mirror), cn or global.
+    void start(const QString& channel, const Completion& completion);
+    static QString mirrorBase();
 
 private:
-    void checkSource(bool github, const Completion& completion);
+    void checkSource(bool github, bool fallback, long timeout, const Completion& completion);
 };
 
 #endif

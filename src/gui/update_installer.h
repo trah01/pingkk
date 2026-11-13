@@ -14,7 +14,8 @@ class UpdateInstaller : public QObject {
 public:
     explicit UpdateInstaller(bool english, QObject* parent);
     ~UpdateInstaller();
-    void start(const QString& version, const QUrl& source);
+    // fallback: retry from the domestic mirror when GitHub fails (automatic channel).
+    void start(const QString& version, const QUrl& source, bool fallback);
     bool restart();
 
 signals:
@@ -34,6 +35,7 @@ private:
 
     bool english_;
     bool ready_ = false;
+    bool fallback_ = false;
     QString version_;
     QString kind_;
     QString target_;

@@ -3,6 +3,8 @@
 
 #include <QString>
 
+class QComboBox;
+
 namespace pingkk { namespace gui {
 namespace colors {
 constexpr const char* surface = "#ffffff";
@@ -18,6 +20,8 @@ constexpr const char* danger = "#b23b3b";
 }
 
 QString mainWindowStyle();
+// Uses the shared popup list style for a combo box.
+void configureComboBox(QComboBox* comboBox);
 } }
 
 #endif

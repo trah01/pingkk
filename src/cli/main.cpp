@@ -58,8 +58,8 @@ void waitUntilOrStopped(const std::chrono::steady_clock::time_point& deadline) {
     }
 }
 
-void printCurrentDns() {
-    const std::vector<std::string> servers = pingkk::currentDnsServers();
+void printCurrentDns(pingkk::IpVersion version) {
+    const std::vector<std::string> servers = pingkk::currentDnsServers(version);
     if (servers.empty()) {
         std::cout << pingkk::text("当前 DNS：未检测到\n");
         return;
@@ -312,7 +312,7 @@ int runCheckup(int timeoutMilliseconds, bool advanced, pingkk::IpVersion version
     if (localAddress == pingkk::text("未知")) healthy = false;
 
     std::cout << pingkk::text("[2/5] DNS 配置\n");
-    const std::vector<std::string> dnsServers = pingkk::currentDnsServers();
+    const std::vector<std::string> dnsServers = pingkk::currentDnsServers(version);
     std::cout << pingkk::text("  DNS：") << joinAddresses(dnsServers) << "\n";
     if (dnsServers.empty()) healthy = false;
 
@@ -403,7 +403,7 @@ const char* versionName(pingkk::IpVersion version) {
 
 void printLocalNetwork(pingkk::IpVersion version) {
     std::cout << pingkk::text("当前 IP：") << pingkk::primaryLocalAddress(version) << "\n";
-    printCurrentDns();
+    printCurrentDns(version);
 }
 
 std::vector<pingkk::ResolvedTarget> resolveSelectedTargets(
@@ -463,7 +463,7 @@ int runPingOrRoute(const std::string& input,
             std::cout << pingkk::text("域名 ") << target.host << pingkk::text(" 解析为 IP ") << target.ip << "\n";
         }
     }
-    if (route || targets.front().host != targets.front().ip) printCurrentDns();
+    if (route || targets.front().host != targets.front().ip) printCurrentDns(version);
 
     const auto trace = [&](const pingkk::ResolvedTarget& target) -> int {
         const std::chrono::steady_clock::time_point routeStart =
@@ -908,7 +908,7 @@ int main(int argc, char* argv[]) {
         if (target.host != target.ip) {
             std::cout << pingkk::text("域名 ") << target.host << pingkk::text(" 解析为 IP ") << target.ip << "\n";
         }
-        printCurrentDns();
+        printCurrentDns(version);
 
     }
     bool allReachable = complete;

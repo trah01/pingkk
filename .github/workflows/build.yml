@@ -396,6 +396,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: 检出同步脚本
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: true
+
       - name: 下载全部平台产物
         uses: actions/download-artifact@v4
         with:
@@ -433,3 +439,12 @@ jobs:
             gh release create "$GITHUB_REF_NAME" release-files/* \
               --verify-tag --generate-notes --title "pingkk $GITHUB_REF_NAME"
           fi
+
+      # 同一批文件同步到 Forgejo，供国内服务器拉取。
+      # 需在仓库 Secrets 中配置 FORGEJO_REPO_URL（仓库网址）和 FORGEJO_TOKEN（仓库写入权限）。
+      - name: 同步到 Forgejo Release
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_REPO_URL: ${{ secrets.FORGEJO_REPO_URL }}
+        run: scripts/sync_forgejo_release.sh "${GITHUB_REF_NAME}" "${GITHUB_SHA}" release-files

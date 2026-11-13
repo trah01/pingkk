@@ -212,15 +212,7 @@ protected:
     }
 };
 
-void configureComboBox(QComboBox* comboBox) {
-    QListView* view = new QListView(comboBox);
-    view->setObjectName("comboPopup");
-    view->setFrameShape(QFrame::NoFrame);
-    view->setSpacing(2);
-    view->setUniformItemSizes(true);
-    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    comboBox->setView(view);
-}
+using pingkk::gui::configureComboBox;
 
 void fitComboBoxText(QComboBox* comboBox) {
     comboBox->ensurePolished();
